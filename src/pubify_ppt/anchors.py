@@ -6,6 +6,7 @@ from dataclasses import dataclass
 import re
 
 from pptx import Presentation
+from pptx.presentation import Presentation as PresentationObject
 from pptx.enum.shapes import MSO_SHAPE_TYPE
 
 
@@ -39,6 +40,12 @@ def discover_figure_anchors(deck_path: object) -> tuple[FigureAnchor, ...]:
     """Discover figure anchors from PowerPoint shape alt text."""
 
     deck = Presentation(deck_path)
+    return discover_figure_anchors_in_deck(deck)
+
+
+def discover_figure_anchors_in_deck(deck: PresentationObject) -> tuple[FigureAnchor, ...]:
+    """Discover figure anchors from an already-open PowerPoint deck."""
+
     anchors: list[FigureAnchor] = []
     for slide_number, slide in enumerate(deck.slides, start=1):
         for shape in slide.shapes:
@@ -99,6 +106,15 @@ def shape_alt_text(shape: object) -> str | None:
     if not matches:
         return None
     return matches[0].get("descr")
+
+
+def set_shape_alt_text(shape: object, value: str) -> None:
+    """Set a shape's description alt text in the Open XML tree."""
+
+    matches = shape._element.xpath(".//p:cNvPr")
+    if not matches:
+        raise ValueError("Shape does not expose a PowerPoint non-visual properties node")
+    matches[0].set("descr", value)
 
 
 def _validate_alt_text(

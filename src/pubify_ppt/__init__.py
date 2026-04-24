@@ -9,6 +9,7 @@ from .config import (
     load_workspace_config,
 )
 from .discovery import PresentationDefinition, PresentationPaths, load_presentation_definition
+from .figures import update_figures
 from .runtime import check_presentation
 
 __all__ = [
@@ -22,4 +23,5 @@ __all__ = [
     "load_presentation_config",
     "load_presentation_definition",
     "load_workspace_config",
+    "update_figures",
 ]

@@ -82,3 +82,21 @@ the loaded presentation entrypoint.
 loader data paths, `pubify-data` dependencies, figure anchors in PowerPoint alt
 text, stat tokens in PowerPoint text, duplicate or unknown figure anchors,
 unknown stat ids, and split-run stat tokens.
+
+## Figure Updates
+
+`ppt <presentation-id> figure update` renders all declared figures and replaces
+matching figure anchors in the editable source deck. `ppt <presentation-id>
+figure <figure-id> update` updates only one selected figure and leaves
+unrelated figure anchors and PNG artifacts unchanged.
+
+V1 figure updates render PNGs under
+`data/ppt-artifacts/figures/`. Single-panel figures use
+`<figure-id>.png`; multi-panel figures use `<figure-id>_<panel-number>.png`.
+The current PowerPoint anchor dimensions drive the Matplotlib export size, and
+inserted pictures are centered inside the anchor box with contain-fit
+geometry. Inserted pictures keep the original `{{fig:...}}` token as alt text
+so future updates can find them.
+
+Backup creation and `--output <path>` generated copies are separate deck-write
+features and are not part of the current figure update implementation.

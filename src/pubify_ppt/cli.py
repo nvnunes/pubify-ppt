@@ -7,6 +7,7 @@ import sys
 from pubify_ppt.config import WORKSPACE_CONFIG_SECTION
 from pubify_ppt.config import find_workspace_root
 from pubify_ppt.discovery import list_presentation_ids, load_presentation_definition
+from pubify_ppt.figures import update_figures
 from pubify_ppt.init import init_presentation_by_id, init_workspace
 from pubify_ppt.runtime import check_presentation
 
@@ -26,8 +27,12 @@ def build_parser() -> argparse.ArgumentParser:
                 "  ppt <presentation-id> check",
                 "  ppt <presentation-id> data list",
                 "  ppt <presentation-id> figure list",
-                "  ppt <presentation-id> figure update [--output <path>]",
+                "  ppt <presentation-id> figure update",
+                "  ppt <presentation-id> figure <figure-id> update",
                 "  ppt <presentation-id> stat list",
+                "",
+                "Planned commands:",
+                "  ppt <presentation-id> figure update --output <path>",
                 "  ppt <presentation-id> stat update [--output <path>]",
                 "  ppt <presentation-id> update [--output <path>]",
                 "",
@@ -96,12 +101,12 @@ def _reject_force(parser: argparse.ArgumentParser, command: str, force: bool) ->
 
 
 def _run_presentation_command(parser: argparse.ArgumentParser, args: argparse.Namespace) -> int:
-    _reject_output(parser, args.arg2, args.output)
     _reject_force(parser, args.arg2, args.force)
     workspace_root = find_workspace_root()
     presentation = load_presentation_definition(workspace_root, args.subject)
 
     if args.arg2 == "check":
+        _reject_output(parser, "check", args.output)
         if any(value is not None for value in (args.arg3, args.arg4, args.arg5)):
             parser.error("check does not accept additional arguments")
         check_presentation(presentation)
@@ -109,16 +114,29 @@ def _run_presentation_command(parser: argparse.ArgumentParser, args: argparse.Na
         return 0
 
     if args.arg2 in {"data", "figure", "stat"}:
-        if args.arg3 != "list" or args.arg4 is not None or args.arg5 is not None:
-            parser.error(f"{args.arg2} supports only 'list' in this phase")
-        values = {
-            "data": presentation.loaders,
-            "figure": presentation.figures,
-            "stat": presentation.stats,
-        }[args.arg2]
-        for item_id in sorted(values):
-            print(item_id)
-        return 0
+        if args.arg3 == "list" and args.arg4 is None and args.arg5 is None:
+            _reject_output(parser, f"{args.arg2} list", args.output)
+            values = {
+                "data": presentation.loaders,
+                "figure": presentation.figures,
+                "stat": presentation.stats,
+            }[args.arg2]
+            for item_id in sorted(values):
+                print(item_id)
+            return 0
+        if args.arg2 == "figure" and args.arg3 == "update" and args.arg4 is None and args.arg5 is None:
+            _reject_output(parser, "figure update", args.output)
+            outputs = update_figures(presentation)
+            for path in outputs:
+                print(path)
+            return 0
+        if args.arg2 == "figure" and args.arg4 == "update" and args.arg3 is not None and args.arg5 is None:
+            _reject_output(parser, "figure <figure-id> update", args.output)
+            outputs = update_figures(presentation, figure_id=args.arg3)
+            for path in outputs:
+                print(path)
+            return 0
+        parser.error(f"unsupported {args.arg2} command")
 
     parser.error(f"unsupported command '{args.arg2}'")
     return 2

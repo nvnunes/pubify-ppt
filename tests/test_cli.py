@@ -14,7 +14,8 @@ def test_cli_help_includes_planned_commands(capsys: pytest.CaptureFixture[str]) 
     assert exc_info.value.code == 0
     output = capsys.readouterr().out
     assert "ppt init <presentation-id>" in output
-    assert "ppt <presentation-id> update [--output <path>]" in output
+    assert "ppt <presentation-id> figure <figure-id> update" in output
+    assert "Planned commands:" in output
 
 
 def test_cli_entrypoint_reports_unimplemented_commands(capsys: pytest.CaptureFixture[str]) -> None:
@@ -110,3 +111,20 @@ def test_cli_inventory_and_check_commands(
     assert capsys.readouterr().out.splitlines() == ["example"]
     assert main(["demo", "check"]) == 0
     assert capsys.readouterr().out.strip() == "demo: ok"
+
+
+def test_cli_figure_update_writes_png_and_deck(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    main(["init"])
+    main(["init", "demo"])
+    capsys.readouterr()
+
+    assert main(["demo", "figure", "update"]) == 0
+
+    output = capsys.readouterr().out.strip()
+    assert output.endswith("slides/demo/data/ppt-artifacts/figures/example.png")
+    assert (tmp_path / "slides" / "demo" / "data" / "ppt-artifacts" / "figures" / "example.png").is_file()
