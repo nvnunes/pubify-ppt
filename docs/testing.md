@@ -26,8 +26,11 @@ Build the docs with:
 
 - `tests/test_cli.py`: CLI parser and entrypoint behavior
 - `tests/test_config.py`: workspace config loading
+- `tests/test_discovery.py`: presentation path resolution and
+  `pubify-data` adapter loading
+- `tests/test_check.py`: static presentation validation and deck token checks
 - `tests/test_runtime.py`: package/runtime smoke coverage
-- `tests/test_anchors.py`: PowerPoint anchor behavior once implemented
+- `tests/test_anchors.py`: PowerPoint anchor module smoke coverage
 
 ## Completion Expectations
 

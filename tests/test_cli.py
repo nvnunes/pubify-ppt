@@ -19,7 +19,7 @@ def test_cli_help_includes_planned_commands(capsys: pytest.CaptureFixture[str]) 
 
 def test_cli_entrypoint_reports_unimplemented_commands(capsys: pytest.CaptureFixture[str]) -> None:
     with pytest.raises(SystemExit) as exc_info:
-        main(["demo", "update", "--output", "copy.pptx"])
+        main([])
 
     assert exc_info.value.code == 2
     assert "command is not implemented yet" in capsys.readouterr().err
@@ -74,3 +74,39 @@ def test_cli_init_presentation_creates_scaffold(
     assert (presentation_root / "data" / "ppt-artifacts" / "figures").is_dir()
     assert (presentation_root / "data" / "ppt-artifacts" / "backups").is_dir()
     assert capsys.readouterr().out.strip() == str(presentation_root)
+
+
+def test_cli_list_reports_presentations(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    main(["init"])
+    main(["init", "demo"])
+    main(["init", "talk"])
+    capsys.readouterr()
+
+    assert main(["list"]) == 0
+
+    assert capsys.readouterr().out.splitlines() == ["demo", "talk"]
+
+
+def test_cli_inventory_and_check_commands(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    main(["init"])
+    main(["init", "demo"])
+    capsys.readouterr()
+
+    assert main(["demo", "data", "list"]) == 0
+    assert capsys.readouterr().out.splitlines() == ["example"]
+    assert main(["demo", "figure", "list"]) == 0
+    assert capsys.readouterr().out.splitlines() == ["example"]
+    assert main(["demo", "stat", "list"]) == 0
+    assert capsys.readouterr().out.splitlines() == ["example"]
+    assert main(["demo", "check"]) == 0
+    assert capsys.readouterr().out.strip() == "demo: ok"

@@ -67,3 +67,18 @@ when the file already exists without one, and creates the configured
 existing `data/` directory or symlink, creates `data/ppt-artifacts/figures/`
 and `data/ppt-artifacts/backups/`, and writes starter `ppt.yaml`, `figures.py`,
 `example.csv`, and `deck.pptx` only when those files are missing.
+
+## Discovery And Checks
+
+`pubify-ppt` loads presentation `figures.py` through `pubify-data` using a
+`PublicationAdapter` whose data root is `slides/<presentation-id>/data/`.
+Workspace-relative `external_data_roots` in `ppt.yaml` resolve relative to the
+workspace root.
+
+Read-only inventory commands list decorated loaders, figures, and stats from
+the loaded presentation entrypoint.
+
+`ppt <presentation-id> check` validates config, required presentation paths,
+loader data paths, `pubify-data` dependencies, figure anchors in PowerPoint alt
+text, stat tokens in PowerPoint text, duplicate or unknown figure anchors,
+unknown stat ids, and split-run stat tokens.
