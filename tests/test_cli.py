@@ -128,3 +128,18 @@ def test_cli_figure_update_writes_png_and_deck(
     output = capsys.readouterr().out.strip()
     assert output.endswith("slides/demo/data/ppt-artifacts/figures/example.png")
     assert (tmp_path / "slides" / "demo" / "data" / "ppt-artifacts" / "figures" / "example.png").is_file()
+
+
+def test_cli_stat_update_writes_deck(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    main(["init"])
+    main(["init", "demo"])
+    capsys.readouterr()
+
+    assert main(["demo", "stat", "update"]) == 0
+
+    assert capsys.readouterr().out.splitlines() == ["{{stat:example.count}}"]

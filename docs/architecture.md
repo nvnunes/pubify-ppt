@@ -100,3 +100,16 @@ so future updates can find them.
 
 Backup creation and `--output <path>` generated copies are separate deck-write
 features and are not part of the current figure update implementation.
+
+## Stat Updates
+
+`ppt <presentation-id> stat update` computes all declared stats and replaces
+matching `{{stat:...}}` inline text tokens in the editable source deck.
+`ppt <presentation-id> stat <stat-id> update` computes and replaces only one
+selected stat, leaving unrelated stat tokens unchanged.
+
+Scalar stats replace `{{stat:<stat-id>}}`. Dictionary stats replace
+`{{stat:<stat-id>.<key>}}`. Replacement values are plain text. When a token is
+contained in a single PowerPoint run, the replacement preserves that run's
+formatting. Split-run tokens fail validation and must be retyped into one text
+run before update.

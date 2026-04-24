@@ -11,6 +11,7 @@ from .config import (
 from .discovery import PresentationDefinition, PresentationPaths, load_presentation_definition
 from .figures import update_figures
 from .runtime import check_presentation
+from .stats import update_stats
 
 __all__ = [
     "PresentationConfig",
@@ -24,4 +25,5 @@ __all__ = [
     "load_presentation_definition",
     "load_workspace_config",
     "update_figures",
+    "update_stats",
 ]

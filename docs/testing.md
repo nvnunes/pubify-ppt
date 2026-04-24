@@ -30,6 +30,7 @@ Build the docs with:
   `pubify-data` adapter loading
 - `tests/test_check.py`: static presentation validation and deck token checks
 - `tests/test_figures.py`: figure rendering and PowerPoint anchor replacement
+- `tests/test_stats.py`: inline stat replacement and targeted stat updates
 - `tests/test_runtime.py`: package/runtime smoke coverage
 - `tests/test_anchors.py`: PowerPoint anchor module smoke coverage
 

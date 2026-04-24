@@ -10,6 +10,7 @@ from pubify_ppt.discovery import list_presentation_ids, load_presentation_defini
 from pubify_ppt.figures import update_figures
 from pubify_ppt.init import init_presentation_by_id, init_workspace
 from pubify_ppt.runtime import check_presentation
+from pubify_ppt.stats import update_stats
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -30,10 +31,12 @@ def build_parser() -> argparse.ArgumentParser:
                 "  ppt <presentation-id> figure update",
                 "  ppt <presentation-id> figure <figure-id> update",
                 "  ppt <presentation-id> stat list",
+                "  ppt <presentation-id> stat update",
+                "  ppt <presentation-id> stat <stat-id> update",
                 "",
                 "Planned commands:",
                 "  ppt <presentation-id> figure update --output <path>",
-                "  ppt <presentation-id> stat update [--output <path>]",
+                "  ppt <presentation-id> stat update --output <path>",
                 "  ppt <presentation-id> update [--output <path>]",
                 "",
                 f"Workspace config section: {WORKSPACE_CONFIG_SECTION}",
@@ -135,6 +138,18 @@ def _run_presentation_command(parser: argparse.ArgumentParser, args: argparse.Na
             outputs = update_figures(presentation, figure_id=args.arg3)
             for path in outputs:
                 print(path)
+            return 0
+        if args.arg2 == "stat" and args.arg3 == "update" and args.arg4 is None and args.arg5 is None:
+            _reject_output(parser, "stat update", args.output)
+            replacements = update_stats(presentation)
+            for replacement in replacements:
+                print(replacement.token)
+            return 0
+        if args.arg2 == "stat" and args.arg4 == "update" and args.arg3 is not None and args.arg5 is None:
+            _reject_output(parser, "stat <stat-id> update", args.output)
+            replacements = update_stats(presentation, stat_id=args.arg3)
+            for replacement in replacements:
+                print(replacement.token)
             return 0
         parser.error(f"unsupported {args.arg2} command")
 
