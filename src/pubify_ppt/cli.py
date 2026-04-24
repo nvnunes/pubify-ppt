@@ -7,10 +7,11 @@ import sys
 from pubify_ppt.config import WORKSPACE_CONFIG_SECTION
 from pubify_ppt.config import find_workspace_root
 from pubify_ppt.discovery import list_presentation_ids, load_presentation_definition
-from pubify_ppt.figures import update_figures
+from pubify_ppt.figures import update_figures_to_output
 from pubify_ppt.init import init_presentation_by_id, init_workspace
 from pubify_ppt.runtime import check_presentation
-from pubify_ppt.stats import update_stats
+from pubify_ppt.stats import update_stats_to_output
+from pubify_ppt.update import update_presentation
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -28,15 +29,11 @@ def build_parser() -> argparse.ArgumentParser:
                 "  ppt <presentation-id> check",
                 "  ppt <presentation-id> data list",
                 "  ppt <presentation-id> figure list",
-                "  ppt <presentation-id> figure update",
-                "  ppt <presentation-id> figure <figure-id> update",
+                "  ppt <presentation-id> figure update [--output <path>]",
+                "  ppt <presentation-id> figure <figure-id> update [--output <path>]",
                 "  ppt <presentation-id> stat list",
-                "  ppt <presentation-id> stat update",
-                "  ppt <presentation-id> stat <stat-id> update",
-                "",
-                "Planned commands:",
-                "  ppt <presentation-id> figure update --output <path>",
-                "  ppt <presentation-id> stat update --output <path>",
+                "  ppt <presentation-id> stat update [--output <path>]",
+                "  ppt <presentation-id> stat <stat-id> update [--output <path>]",
                 "  ppt <presentation-id> update [--output <path>]",
                 "",
                 f"Workspace config section: {WORKSPACE_CONFIG_SECTION}",
@@ -116,6 +113,16 @@ def _run_presentation_command(parser: argparse.ArgumentParser, args: argparse.Na
         print(f"{presentation.presentation_id}: ok")
         return 0
 
+    if args.arg2 == "update":
+        if any(value is not None for value in (args.arg3, args.arg4, args.arg5)):
+            parser.error("update does not accept additional arguments")
+        result = update_presentation(presentation, output=_output_path(args.output))
+        for path in result.figure_outputs:
+            print(path)
+        for replacement in result.stat_replacements:
+            print(replacement.token)
+        return 0
+
     if args.arg2 in {"data", "figure", "stat"}:
         if args.arg3 == "list" and args.arg4 is None and args.arg5 is None:
             _reject_output(parser, f"{args.arg2} list", args.output)
@@ -128,26 +135,22 @@ def _run_presentation_command(parser: argparse.ArgumentParser, args: argparse.Na
                 print(item_id)
             return 0
         if args.arg2 == "figure" and args.arg3 == "update" and args.arg4 is None and args.arg5 is None:
-            _reject_output(parser, "figure update", args.output)
-            outputs = update_figures(presentation)
+            outputs = update_figures_to_output(presentation, output=_output_path(args.output))
             for path in outputs:
                 print(path)
             return 0
         if args.arg2 == "figure" and args.arg4 == "update" and args.arg3 is not None and args.arg5 is None:
-            _reject_output(parser, "figure <figure-id> update", args.output)
-            outputs = update_figures(presentation, figure_id=args.arg3)
+            outputs = update_figures_to_output(presentation, figure_id=args.arg3, output=_output_path(args.output))
             for path in outputs:
                 print(path)
             return 0
         if args.arg2 == "stat" and args.arg3 == "update" and args.arg4 is None and args.arg5 is None:
-            _reject_output(parser, "stat update", args.output)
-            replacements = update_stats(presentation)
+            replacements = update_stats_to_output(presentation, output=_output_path(args.output))
             for replacement in replacements:
                 print(replacement.token)
             return 0
         if args.arg2 == "stat" and args.arg4 == "update" and args.arg3 is not None and args.arg5 is None:
-            _reject_output(parser, "stat <stat-id> update", args.output)
-            replacements = update_stats(presentation, stat_id=args.arg3)
+            replacements = update_stats_to_output(presentation, stat_id=args.arg3, output=_output_path(args.output))
             for replacement in replacements:
                 print(replacement.token)
             return 0
@@ -155,3 +158,7 @@ def _run_presentation_command(parser: argparse.ArgumentParser, args: argparse.Na
 
     parser.error(f"unsupported command '{args.arg2}'")
     return 2
+
+
+def _output_path(value: str | None) -> Path | None:
+    return Path(value) if value is not None else None

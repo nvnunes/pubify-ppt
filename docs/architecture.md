@@ -98,9 +98,6 @@ inserted pictures are centered inside the anchor box with contain-fit
 geometry. Inserted pictures keep the original `{{fig:...}}` token as alt text
 so future updates can find them.
 
-Backup creation and `--output <path>` generated copies are separate deck-write
-features and are not part of the current figure update implementation.
-
 ## Stat Updates
 
 `ppt <presentation-id> stat update` computes all declared stats and replaces
@@ -113,3 +110,25 @@ Scalar stats replace `{{stat:<stat-id>}}`. Dictionary stats replace
 contained in a single PowerPoint run, the replacement preserves that run's
 formatting. Split-run tokens fail validation and must be retyped into one text
 run before update.
+
+## Deck Writes And Backups
+
+Write commands mutate `deck.pptx` in place by default. Before replacing the
+source deck, `pubify-ppt` copies the current source deck to:
+
+```text
+data/ppt-artifacts/backups/deck-YYYYMMDD-HHMMSS.pptx
+```
+
+Deck writes save to a temporary `.pptx` beside the source deck and then replace
+the source path. If the save fails after backup creation, the original source
+deck and created backup are retained. Backup pruning runs only after a
+successful in-place write and keeps the newest `backup_retention` backups from
+`ppt.yaml`.
+
+`--output <path>` writes a generated deck copy and does not create a backup or
+mutate `deck.pptx`. Generated figure PNGs are still refreshed under
+`data/ppt-artifacts/figures/` when figure rendering is part of the command.
+
+`ppt <presentation-id> update` refreshes all figures and stats in one open deck
+and performs one final write through the same backup/output policy.

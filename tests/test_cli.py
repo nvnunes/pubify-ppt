@@ -14,8 +14,8 @@ def test_cli_help_includes_planned_commands(capsys: pytest.CaptureFixture[str]) 
     assert exc_info.value.code == 0
     output = capsys.readouterr().out
     assert "ppt init <presentation-id>" in output
-    assert "ppt <presentation-id> figure <figure-id> update" in output
-    assert "Planned commands:" in output
+    assert "ppt <presentation-id> figure <figure-id> update [--output <path>]" in output
+    assert "ppt <presentation-id> update [--output <path>]" in output
 
 
 def test_cli_entrypoint_reports_unimplemented_commands(capsys: pytest.CaptureFixture[str]) -> None:
@@ -143,3 +143,35 @@ def test_cli_stat_update_writes_deck(
     assert main(["demo", "stat", "update"]) == 0
 
     assert capsys.readouterr().out.splitlines() == ["{{stat:example.count}}"]
+
+
+def test_cli_full_update_writes_figures_and_stats(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    main(["init"])
+    main(["init", "demo"])
+    capsys.readouterr()
+
+    assert main(["demo", "update"]) == 0
+
+    output = capsys.readouterr().out.splitlines()
+    assert output[0].endswith("slides/demo/data/ppt-artifacts/figures/example.png")
+    assert output[1] == "{{stat:example.count}}"
+
+
+def test_cli_output_writes_generated_copy(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    main(["init"])
+    main(["init", "demo"])
+    capsys.readouterr()
+
+    assert main(["demo", "stat", "update", "--output", "copy.pptx"]) == 0
+
+    assert (tmp_path / "copy.pptx").is_file()

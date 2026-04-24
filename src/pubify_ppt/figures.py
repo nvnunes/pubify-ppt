@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
 
 from PIL import Image
 from pptx import Presentation
+from pptx.presentation import Presentation as PresentationObject
 from pptx.util import Emu
 import pubify_data
 
@@ -12,6 +14,7 @@ from pubify_ppt.anchors import (
     discover_figure_anchors_in_deck,
     set_shape_alt_text,
 )
+from pubify_ppt.backups import write_deck
 from pubify_ppt.discovery import PresentationDefinition
 from pubify_ppt.runtime import check_presentation, ensure_generated_artifact_paths
 
@@ -19,25 +22,56 @@ from pubify_ppt.runtime import check_presentation, ensure_generated_artifact_pat
 EMU_PER_INCH = 914400
 
 
+@dataclass(frozen=True)
+class FigureUpdateResult:
+    """Figure update changes applied to an open deck."""
+
+    deck: PresentationObject
+    outputs: tuple[Path, ...]
+
+
 def update_figures(
     presentation: PresentationDefinition,
     *,
     figure_id: str | None = None,
 ) -> tuple[Path, ...]:
-    """Render selected figures and replace their PowerPoint anchors in place.
+    """Render selected figures and replace their PowerPoint anchors in place."""
 
-    Phase 3 writes the source deck directly. Backup creation and ``--output``
-    generated copies are owned by the later deck-write phase.
-    """
+    result = update_figures_in_deck(presentation, figure_id=figure_id)
+    write_deck(presentation, result.deck)
+    return result.outputs
+
+
+def update_figures_to_output(
+    presentation: PresentationDefinition,
+    *,
+    figure_id: str | None = None,
+    output: Path | None = None,
+) -> tuple[Path, ...]:
+    """Render selected figures and write the updated deck through the output policy."""
+
+    result = update_figures_in_deck(presentation, figure_id=figure_id)
+    write_deck(presentation, result.deck, output=output)
+    return result.outputs
+
+
+def update_figures_in_deck(
+    presentation: PresentationDefinition,
+    *,
+    figure_id: str | None = None,
+    deck: PresentationObject | None = None,
+) -> "FigureUpdateResult":
+    """Render selected figures and replace anchors in an open deck."""
 
     check_presentation(presentation)
     ensure_generated_artifact_paths(presentation)
     selected_ids = _selected_figure_ids(presentation, figure_id)
     if not selected_ids:
-        return ()
+        active_deck = deck if deck is not None else Presentation(presentation.paths.deck_path)
+        return FigureUpdateResult(active_deck, ())
 
-    deck = Presentation(presentation.paths.deck_path)
-    anchors = discover_figure_anchors_in_deck(deck)
+    active_deck = deck if deck is not None else Presentation(presentation.paths.deck_path)
+    anchors = discover_figure_anchors_in_deck(active_deck)
     rendered = _run_selected_figures(presentation, selected_ids)
     outputs: list[Path] = []
     _clear_selected_figure_pngs(presentation, selected_ids)
@@ -57,8 +91,7 @@ def update_figures(
             _replace_anchor_with_picture(anchor, output_path)
             outputs.append(output_path)
 
-    deck.save(presentation.paths.deck_path)
-    return tuple(outputs)
+    return FigureUpdateResult(active_deck, tuple(outputs))
 
 
 def _selected_figure_ids(presentation: PresentationDefinition, figure_id: str | None) -> tuple[str, ...]:

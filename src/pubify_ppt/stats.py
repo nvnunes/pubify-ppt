@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 from pptx import Presentation
+from pptx.presentation import Presentation as PresentationObject
 import pubify_data
 
 from pubify_ppt.anchors import STAT_TOKEN_RE
+from pubify_ppt.backups import write_deck
 from pubify_ppt.discovery import PresentationDefinition
 from pubify_ppt.runtime import check_presentation
 
@@ -19,6 +22,14 @@ class StatReplacement:
     value: str
 
 
+@dataclass(frozen=True)
+class StatUpdateResult:
+    """Stat replacements applied to an open deck."""
+
+    deck: PresentationObject
+    replacements: tuple[StatReplacement, ...]
+
+
 def update_stats(
     presentation: PresentationDefinition,
     *,
@@ -26,16 +37,42 @@ def update_stats(
 ) -> tuple[StatReplacement, ...]:
     """Compute selected stats and replace matching inline PowerPoint tokens."""
 
+    result = update_stats_in_deck(presentation, stat_id=stat_id)
+    write_deck(presentation, result.deck)
+    return result.replacements
+
+
+def update_stats_to_output(
+    presentation: PresentationDefinition,
+    *,
+    stat_id: str | None = None,
+    output: Path | None = None,
+) -> tuple[StatReplacement, ...]:
+    """Compute selected stats and write the updated deck through the output policy."""
+
+    result = update_stats_in_deck(presentation, stat_id=stat_id)
+    write_deck(presentation, result.deck, output=output)
+    return result.replacements
+
+
+def update_stats_in_deck(
+    presentation: PresentationDefinition,
+    *,
+    stat_id: str | None = None,
+    deck: PresentationObject | None = None,
+) -> StatUpdateResult:
+    """Compute selected stats and replace matching tokens in an open deck."""
+
     check_presentation(presentation)
     selected_ids = _selected_stat_ids(presentation, stat_id)
+    active_deck = deck if deck is not None else Presentation(presentation.paths.deck_path)
     if not selected_ids:
-        return ()
+        return StatUpdateResult(active_deck, ())
 
     values = _run_selected_stats(presentation, selected_ids)
-    deck = Presentation(presentation.paths.deck_path)
     replacements: list[StatReplacement] = []
 
-    for slide in deck.slides:
+    for slide in active_deck.slides:
         for shape in slide.shapes:
             text_frame = getattr(shape, "text_frame", None)
             if text_frame is None:
@@ -45,8 +82,7 @@ def update_stats(
                     run.text, run_replacements = _replace_run_tokens(run.text, selected_ids=selected_ids, values=values)
                     replacements.extend(run_replacements)
 
-    deck.save(presentation.paths.deck_path)
-    return tuple(replacements)
+    return StatUpdateResult(active_deck, tuple(replacements))
 
 
 def _selected_stat_ids(presentation: PresentationDefinition, stat_id: str | None) -> tuple[str, ...]:

@@ -21,13 +21,14 @@ This package does not own your presentations. A host workspace does.
 ## Current Status
 
 The package skeleton, initialization workflow, inventory commands, static
-presentation checks, figure updates, and stat updates are in place. `ppt init`
-creates or updates workspace config, and `ppt init <presentation-id>` creates a
-starter presentation scaffold with `ppt.yaml`, `figures.py`, `deck.pptx`, and
+presentation checks, figure updates, stat updates, full updates, generated-copy
+output, and in-place deck backups are in place. `ppt init` creates or updates
+workspace config, and `ppt init <presentation-id>` creates a starter
+presentation scaffold with `ppt.yaml`, `figures.py`, `deck.pptx`, and
 `data/ppt-artifacts/`.
 
-Full update orchestration, generated-copy output, and deck backup commands are
-still planned work.
+Tables, backup inspection/restore commands, and documentation polish are still
+planned work.
 
 ## Workspace Model
 
@@ -65,4 +66,8 @@ ppt <presentation-id> figure <figure-id> update
 ppt <presentation-id> stat list
 ppt <presentation-id> stat update
 ppt <presentation-id> stat <stat-id> update
+ppt <presentation-id> update
 ```
+
+Write commands accept `--output <path>` to write a generated copy instead of
+mutating `deck.pptx`.
