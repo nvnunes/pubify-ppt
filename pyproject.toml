@@ -1,0 +1,47 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pubify-ppt"
+version = "0.1.0"
+description = "PowerPoint presentation workflow engine built on pubify-data"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+dependencies = [
+  "matplotlib>=3.8",
+  "numpy>=1.26",
+  "Pillow>=10.0",
+  "pubify-data>=0.1.0",
+  "python-pptx>=1.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0",
+  "build>=1.2",
+  "mkdocs>=1.6",
+  "mkdocstrings[python]>=0.30",
+  "twine>=5.0",
+]
+
+[project.urls]
+Documentation = "https://github.com/nvnunes/pubify-ppt"
+Repository = "https://github.com/nvnunes/pubify-ppt"
+Changelog = "https://github.com/nvnunes/pubify-ppt/blob/main/CHANGELOG.md"
+
+[project.scripts]
+ppt = "pubify_ppt.cli:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"pubify_ppt.assets.init" = ["*.py"]
+
+[tool.setuptools.exclude-package-data]
+"*" = [".DS_Store"]

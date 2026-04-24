@@ -1,0 +1,26 @@
+site_name: pubify-ppt
+site_url: https://nvnunes.github.io/pubify-ppt/
+theme:
+  name: mkdocs
+nav:
+  - Home: index.md
+  - Architecture: architecture.md
+  - Development: development.md
+  - Testing: testing.md
+  - Plan: plan.md
+  - API Reference: api.md
+docs_dir: docs
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths:
+            - src
+          options:
+            show_root_heading: false
+            show_root_full_path: false
+            show_root_toc_entry: false
+markdown_extensions:
+  - admonition
+  - pymdownx.superfences
