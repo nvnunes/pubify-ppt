@@ -20,11 +20,15 @@ This package does not own your presentations. A host workspace does.
 
 ## Current Status
 
-This repository is in the foundation phase. The package skeleton, CLI
-entrypoint, docs, and baseline tests are being established before the
-PowerPoint runtime is implemented.
+The package skeleton and initialization workflow are in place. `ppt init`
+creates or updates workspace config, and `ppt init <presentation-id>` creates a
+starter presentation scaffold with `ppt.yaml`, `figures.py`, `deck.pptx`, and
+`data/ppt-artifacts/`.
 
-## Planned Workspace Model
+Inventory, check, update, figure rendering, stat replacement, and deck backup
+commands are still planned work.
+
+## Workspace Model
 
 `pubify-ppt` discovers a host workspace from `pubify.yaml`:
 
@@ -33,7 +37,7 @@ pubify-ppt:
   presentations_root: slides
 ```
 
-Each presentation will live under `slides/<presentation-id>/` and use:
+Each presentation lives under `slides/<presentation-id>/` and uses:
 
 ```text
 slides/<presentation-id>/

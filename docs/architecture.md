@@ -56,3 +56,14 @@ slides/<presentation-id>/data/ppt-artifacts/
 
 The editable deck remains presentation source. Rendered figures and backups are
 derived artifacts owned by `pubify-ppt`.
+
+## Initialization
+
+`ppt init` creates `pubify.yaml` when missing, appends a `pubify-ppt` section
+when the file already exists without one, and creates the configured
+`presentations_root`.
+
+`ppt init <presentation-id>` creates the presentation folder, preserves an
+existing `data/` directory or symlink, creates `data/ppt-artifacts/figures/`
+and `data/ppt-artifacts/backups/`, and writes starter `ppt.yaml`, `figures.py`,
+`example.csv`, and `deck.pptx` only when those files are missing.

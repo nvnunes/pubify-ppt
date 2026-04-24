@@ -2,9 +2,9 @@
 
 `pubify-ppt` is the PowerPoint-oriented downstream package for `pubify-data`.
 
-The package is in its foundation phase. Use the implementation plan for the
-current sequencing and `architecture.md` for the stable ownership model as it
-is implemented.
+The package skeleton and initialization workflow are in place. Use the
+implementation plan for the current sequencing and `architecture.md` for the
+stable ownership model as it is implemented.
 
 ## Starting Points
 
