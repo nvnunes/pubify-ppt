@@ -12,6 +12,9 @@ stable ownership model as it is implemented.
 
 - `architecture.md`: package boundaries, workspace model, and generated
   artifact ownership
+- `powerpoint.md`: deck authoring rules, anchor support, stat tokens, and
+  output behavior
+- `migration.md`: practical path for converting a manual deck incrementally
 - `development.md`: local environment and daily commands
 - `testing.md`: canonical verification commands
 - `plan.md`: phased implementation plan

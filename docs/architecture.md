@@ -57,6 +57,9 @@ slides/<presentation-id>/data/ppt-artifacts/
 The editable deck remains presentation source. Rendered figures and backups are
 derived artifacts owned by `pubify-ppt`.
 
+Generated figure PNGs are intermediate artifacts. Decks embed image data, so an
+opened `.pptx` does not depend on the PNG files being present.
+
 ## Initialization
 
 `ppt init` creates `pubify.yaml` when missing, appends a `pubify-ppt` section
@@ -83,6 +86,9 @@ loader data paths, `pubify-data` dependencies, figure anchors in PowerPoint alt
 text, stat tokens in PowerPoint text, duplicate or unknown figure anchors,
 unknown stat ids, and split-run stat tokens.
 
+See `powerpoint.md` for user-facing anchor authoring rules and supported shape
+behavior.
+
 ## Figure Updates
 
 `ppt <presentation-id> figure update` renders all declared figures and replaces
@@ -97,6 +103,10 @@ The current PowerPoint anchor dimensions drive the Matplotlib export size, and
 inserted pictures are centered inside the anchor box with contain-fit
 geometry. Inserted pictures keep the original `{{fig:...}}` token as alt text
 so future updates can find them.
+
+Figure updates support simple placeholder shapes and previously generated
+pictures. Unsupported anchor features, such as grouping, rotation, or cropping,
+are validation errors rather than silently changed layout.
 
 ## Stat Updates
 

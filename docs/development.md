@@ -48,3 +48,20 @@ surface:
 ```bash
 ./.conda/bin/ppt --help
 ```
+
+## Local Manual Smoke Workflow
+
+The starter scaffold is intentionally end-to-end. A quick local smoke test is:
+
+```bash
+mkdir -p /tmp/pubify-ppt-smoke
+cd /tmp/pubify-ppt-smoke
+path/to/pubify-ppt/.conda/bin/ppt init
+path/to/pubify-ppt/.conda/bin/ppt init demo
+path/to/pubify-ppt/.conda/bin/ppt demo check
+path/to/pubify-ppt/.conda/bin/ppt demo update
+```
+
+The update should create `slides/demo/data/ppt-artifacts/figures/example.png`,
+replace the starter figure anchor in `deck.pptx`, replace the starter stat
+token, and create a timestamped deck backup.

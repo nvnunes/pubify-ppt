@@ -14,6 +14,8 @@ This package does not own your presentations. A host workspace does.
 ## Project Docs
 
 - [Architecture](docs/architecture.md)
+- [PowerPoint authoring](docs/powerpoint.md)
+- [Migration guide](docs/migration.md)
 - [Development setup](docs/development.md)
 - [Testing and validation](docs/testing.md)
 - [Implementation plan](docs/plan.md)
@@ -27,8 +29,48 @@ workspace config, and `ppt init <presentation-id>` creates a starter
 presentation scaffold with `ppt.yaml`, `figures.py`, `deck.pptx`, and
 `data/ppt-artifacts/`.
 
-Tables, backup inspection/restore commands, and documentation polish are still
-planned work.
+Tables and backup inspection/restore commands are still planned work.
+
+## Quick Start
+
+Create or update workspace config:
+
+```bash
+ppt init
+```
+
+Create a starter presentation:
+
+```bash
+ppt init demo
+```
+
+Inspect the discovered presentation surface:
+
+```bash
+ppt list
+ppt demo data list
+ppt demo figure list
+ppt demo stat list
+```
+
+Validate anchors, tokens, data paths, and dependencies:
+
+```bash
+ppt demo check
+```
+
+Update the source deck in place:
+
+```bash
+ppt demo update
+```
+
+Write a generated copy instead of mutating `deck.pptx`:
+
+```bash
+ppt demo update --output exports/demo.pptx
+```
 
 ## Workspace Model
 
@@ -48,6 +90,8 @@ slides/<presentation-id>/
   deck.pptx
   data/
     ppt-artifacts/
+      figures/
+      backups/
 ```
 
 See `docs/plan.md` for the phased implementation contract.
@@ -71,3 +115,15 @@ ppt <presentation-id> update
 
 Write commands accept `--output <path>` to write a generated copy instead of
 mutating `deck.pptx`.
+
+## Authoring Summary
+
+- Figure anchors live in PowerPoint alt text, for example
+  `{{fig:example}}`.
+- Multi-panel figures use one explicit anchor per panel, for example
+  `{{fig:comparison:1}}`.
+- Stat tokens live in text boxes, for example `{{stat:example.count}}`.
+- Simple rectangle placeholders and previously generated pictures are the
+  supported figure anchor shapes.
+- Grouped, rotated, cropped, animated, table-contained, chart-contained,
+  SmartArt-contained, and embedded-object-contained anchors are unsupported.

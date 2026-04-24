@@ -50,3 +50,12 @@ Run the strict docs build for changes that affect:
 
 Targeted tests are acceptable during iteration, but final verification should
 match the changed surface area.
+
+For documentation-only changes, the minimum verification is:
+
+```bash
+./.conda/bin/mkdocs build --strict
+```
+
+Run the full test suite as well when docs include executable command examples
+that depend on recently changed package behavior.
