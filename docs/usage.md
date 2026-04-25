@@ -1,9 +1,47 @@
-# PowerPoint Authoring
+# Usage
 
-This document describes the supported PowerPoint authoring model for
-`pubify-ppt` decks.
+This document describes the user-facing workflow for authoring, checking, and
+updating `pubify-ppt` presentations.
 
-## Deck Source
+## Workspace And Presentation Setup
+
+Create or update workspace config from the host workspace root:
+
+```bash
+ppt init
+```
+
+Create a starter presentation:
+
+```bash
+ppt init demo
+```
+
+This creates:
+
+```text
+slides/demo/
+  deck.pptx
+  figures.py
+  ppt.yaml
+  data/
+    ppt-artifacts/
+```
+
+If you already have a deck, replace `slides/demo/deck.pptx` with your existing
+PowerPoint file after initialization.
+
+Put presentation-local source data under:
+
+```text
+slides/demo/data/
+```
+
+If the data must physically live elsewhere, make `slides/demo/data` a symlink
+to that location before running presentation init or updates. `pubify-ppt`
+still treats the presentation-local `data/` path as canonical.
+
+## Deck Source Model
 
 Each presentation owns an editable source deck:
 
@@ -15,7 +53,7 @@ The `.pptx` file is both source and layout editor. Resize placeholders or
 previously generated pictures in PowerPoint, then rerun `ppt <presentation-id>
 update` to regenerate content at the current deck geometry.
 
-## Figure Anchors
+## Authoring Figures
 
 Figure anchors use PowerPoint alt text as their persistent managed state:
 
@@ -28,10 +66,6 @@ Use `{{fig:<figure_id>}}` for single-panel figures. Multi-panel figures require
 one explicit anchor per panel, using one-based panel numbers such as
 `{{fig:comparison:1}}` and `{{fig:comparison:2}}`.
 
-Figure updates replace the anchor shape with an embedded PNG and preserve the
-same figure token in the inserted picture's alt text. Future updates use that
-picture as the next anchor.
-
 For first-time bootstrapping, you can also draw a supported shape and set its
 visible text to exactly one figure token, with no surrounding text:
 
@@ -40,13 +74,25 @@ visible text to exactly one figure token, with no surrounding text:
 ```
 
 On update, `pubify-ppt` treats that shape as a figure anchor, replaces it with
-the rendered picture, and writes the same token into the picture's alt text.
-If a shape has both figure-token alt text and visible figure-token text, they
-must match.
+the rendered picture, and writes the same token into the picture's alt text. If
+a shape has both figure-token alt text and visible figure-token text, they must
+match.
 
 Figure anchors must reference presentation-local figure IDs defined in the
 presentation's `figures.py`. Source publication IDs are not valid PowerPoint
 anchors; expose reused source outputs through local wrapper functions instead.
+
+To convert a manual figure incrementally:
+
+- add a loader and `@figure` function to `figures.py`
+- draw a simple rectangle in PowerPoint where the figure should appear
+- set the rectangle's alt text description to `{{fig:<figure_id>}}`, or set its
+  visible text exactly to that token
+- run `ppt demo figure <figure_id> update`
+
+Once the figure appears correctly, resize the generated picture in PowerPoint
+as needed and rerun the same command. The deck geometry drives future render
+size.
 
 ## Reusing Paper Outputs
 
@@ -120,7 +166,7 @@ update command fails with the slide number, token, and unsupported feature. The
 reliable fix is to replace the anchor with a simple rectangle, then rerun the
 command.
 
-## Stat Tokens
+## Authoring Stats
 
 New stats are authored as inline text tokens in PowerPoint text boxes:
 
@@ -154,20 +200,68 @@ so the update can proceed safely.
 Each stat-managed text box supports one stat token. Split multiple stats into
 separate text boxes.
 
-## Output And Backups
+## Checking A Deck
 
-Write commands mutate `deck.pptx` in place by default and create a backup under:
+Run:
+
+```bash
+ppt demo check
+```
+
+This catches missing data files, unknown anchors, duplicate anchors, malformed
+tokens, unsupported figure anchor shapes, and ambiguous stat-managed text boxes
+before an update writes the deck.
+
+## Updating A Deck
+
+Use default in-place updates during normal iteration:
+
+```bash
+ppt demo update
+```
+
+Targeted updates are available when iterating on one surface:
+
+```bash
+ppt demo figure <figure-id> update
+ppt demo stat <stat-id> update
+```
+
+Update output reports the slide and replacement that changed:
+
+```text
+Slide 1: {{fig:example}} = example.png
+Slide 1: {{stat:example.count}} = 3
+```
+
+When the same token appears multiple times on a slide, repeated replacements
+are indexed:
+
+```text
+Slide 1: {{stat:example.count}} [1/2] = 3
+Slide 1: {{stat:example.count}} [2/2] = 3
+```
+
+## Export Copies
+
+Use `--output <path>` for export copies:
+
+```bash
+ppt demo update --output exports/demo-review.pptx
+```
+
+Generated copies do not create backups and do not update the source deck's
+embedded pictures or stat text. Do not treat generated copies as the canonical
+editable source. Continue editing `slides/demo/deck.pptx`.
+
+## Backups
+
+Write commands mutate `deck.pptx` in place by default and create a timestamped
+backup under:
 
 ```text
 data/ppt-artifacts/backups/
 ```
 
-Use `--output <path>` when you want a generated copy instead of mutating the
-source deck:
-
-```bash
-ppt demo update --output exports/demo.pptx
-```
-
-Generated copies do not create backups and do not update the source deck's
-embedded pictures or stat text.
+Backup retention is configured per presentation in `ppt.yaml` with
+`backup_retention`.

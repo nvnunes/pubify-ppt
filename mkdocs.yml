@@ -5,8 +5,7 @@ theme:
 nav:
   - Home: index.md
   - Architecture: architecture.md
-  - PowerPoint Authoring: powerpoint.md
-  - Migration Guide: migration.md
+  - Usage: usage.md
   - Development: development.md
   - Testing: testing.md
   - Plan: plan.md

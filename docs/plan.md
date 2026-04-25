@@ -22,7 +22,8 @@ proven.
 - Runtime foundation: `pubify-data`.
 - PowerPoint backend: `python-pptx`.
 - Figure anchors: PowerPoint alt text.
-- Stat anchors: inline text tokens.
+- Stat anchors: visible text tokens for first update, then text box Alt Text
+  markers that store the previous rendered value.
 - Default output policy: update `deck.pptx` in place.
 - Optional output policy: support explicit `--output <path>` for generated
   copies.
@@ -176,13 +177,18 @@ that emits multiple related visual outputs. PowerPoint owns the visual layout:
 each panel is inserted into its own explicit anchor box rather than being
 automatically composed by `pubify-ppt`.
 
-Stats return scalar values or dictionaries. Inline tokens in PowerPoint text are
-replaced during stat updates:
+Stats return scalar values or dictionaries. New stats are authored with visible
+tokens in PowerPoint text boxes:
 
 ```text
 {{stat:<stat_id>}}
 {{stat:<stat_id>.<key>}}
 ```
+
+On first update, the visible token is replaced and the text box Alt Text is set
+to `{{stat:<stat_id>=<previous_value>}}` or
+`{{stat:<stat_id>.<key>=<previous_value>}}`. Later updates use the Alt Text
+marker to find the previous visible value and replace it safely.
 
 ## PowerPoint Anchoring
 
@@ -238,24 +244,30 @@ The update flow should locate matching shapes, render each figure panel under
 `data/ppt-artifacts/figures/`, delete or replace the anchor shape, and insert
 the rendered figure image into the same slide geometry.
 
-Stats are updated by scanning text shapes for inline `{{stat:...}}` tokens and
-replacing only the token text.
+Stats are updated by scanning text shapes for new visible `{{stat:...}}`
+tokens and by scanning text box Alt Text for previously rendered stat markers.
 
 V1 stat replacement rules:
 
 - Supported token forms are `{{stat:<stat_id>}}` and
   `{{stat:<stat_id>.<key>}}`.
+- Persisted rendered marker forms are `{{stat:<stat_id>=<previous_value>}}`
+  and `{{stat:<stat_id>.<key>=<previous_value>}}` in text box Alt Text.
 - Scalar stats use `{{stat:<stat_id>}}`.
 - Dictionary stats use `{{stat:<stat_id>.<key>}}`, with keys normalized the
   same way as the TeX macro key suffix in `pubify-pubs`.
 - Missing stat ids and missing dictionary keys are errors.
-- Repeated tokens are allowed and all occurrences are replaced.
+- Repeated tokens are allowed when each occurrence lives in its own text box.
 - Replacement values are plain text.
 - Replacement should preserve the formatting of the run containing the token
-  when the entire token is contained in one run.
-- Tokens split across multiple PowerPoint runs are unsupported in v1 and should
-  produce a clear error that asks the user to retype the token in one text run.
-- Text outside the token is preserved.
+  when possible.
+- Valid visible tokens may be split across multiple internal PowerPoint runs.
+- Each stat-managed text box supports one stat token. Multiple stats in one
+  text box are errors.
+- On later updates, the previous rendered value must appear exactly once in the
+  text box. If it is missing or ambiguous, the user should restore the previous
+  value or reinsert the original `{{stat:...}}` token.
+- Text outside the token is preserved on first update.
 
 By default, updates write back to `deck.pptx` in place after creating a backup.
 `--output <path>` writes a generated copy instead and does not mutate
@@ -350,10 +362,10 @@ CLI write semantics:
   the deck in place by default.
 - `ppt <presentation-id> figure <figure-id> update` refreshes only that figure's
   anchors and writes the deck in place by default.
-- `ppt <presentation-id> stat update` refreshes all stat tokens and writes the
-  deck in place by default.
-- `ppt <presentation-id> stat <stat-id> update` refreshes only tokens for that
-  stat and writes the deck in place by default.
+- `ppt <presentation-id> stat update` refreshes all stat-managed text boxes and
+  writes the deck in place by default.
+- `ppt <presentation-id> stat <stat-id> update` refreshes only text boxes for
+  that stat and writes the deck in place by default.
 - `--output <path>` is accepted on write commands and writes a generated copy
   instead of mutating the source deck.
 - `--output <path>` never updates the source deck's anchor/image state, so it is
@@ -414,7 +426,8 @@ fixture. The source deck remains user-editable presentation source.
 - Generated deck update replaces figure anchors with images at matching
   geometry.
 - Rendered figure images are written under `data/ppt-artifacts/figures/`.
-- Inline stat replacement for scalar and dictionary stats.
+- Stat replacement for scalar and dictionary stats, including first-update
+  visible tokens and later Alt Text anchored values.
 - In-place updates create timestamped backups and respect `backup_retention`.
 - `--output <path>` writes a generated copy without mutating the source deck.
 - Integration test with a tiny `.pptx` deck, one loader, one figure, and two
@@ -470,10 +483,13 @@ fixture. The source deck remains user-editable presentation source.
 
 ### Phase 4: Stats
 
-- Discover inline stat tokens in text shapes.
-- Replace scalar and dictionary stat tokens.
+- Discover visible stat tokens in text shapes.
+- Persist rendered stat anchors in text box Alt Text.
+- Replace scalar and dictionary stat tokens and anchored rendered values.
 - Preserve formatting for single-run tokens.
-- Fail clearly for split-run tokens.
+- Accept valid split-run tokens.
+- Fail clearly when a stat-managed text box contains multiple stat tokens or
+  when the previous rendered value cannot be found exactly once.
 - Support targeted stat updates.
 
 ### Phase 5: In-Place Deck Writes And Backups
@@ -507,12 +523,3 @@ fixture. The source deck remains user-editable presentation source.
 - Define table identity strategy in this phase before implementation. The key
   decision is how future updates find a table after a placeholder shape has
   been replaced by a native PowerPoint table.
-
-### Phase 8: Backup Management Commands
-
-- Add backup inspection and restore commands:
-  - `ppt <presentation-id> backups list`
-  - `ppt <presentation-id> backups restore <backup-name>`
-- `backups list` reports retained backup filenames, timestamps, and paths.
-- `backups restore` creates a backup of the current `deck.pptx` before
-  replacing it with the selected backup.

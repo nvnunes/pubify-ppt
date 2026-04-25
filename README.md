@@ -14,8 +14,7 @@ This package does not own your presentations. A host workspace does.
 ## Project Docs
 
 - [Architecture](docs/architecture.md)
-- [PowerPoint authoring](docs/powerpoint.md)
-- [Migration guide](docs/migration.md)
+- [Usage](docs/usage.md)
 - [Development setup](docs/development.md)
 - [Testing and validation](docs/testing.md)
 - [Implementation plan](docs/plan.md)
@@ -29,7 +28,7 @@ workspace config, and `ppt init <presentation-id>` creates a starter
 presentation scaffold with `ppt.yaml`, `figures.py`, `deck.pptx`, and
 `data/ppt-artifacts/`.
 
-Tables and backup inspection/restore commands are still planned work.
+Tables are still planned work.
 
 ## Quick Start
 

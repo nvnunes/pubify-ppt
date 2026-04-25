@@ -84,9 +84,9 @@ the loaded presentation entrypoint.
 `ppt <presentation-id> check` validates config, required presentation paths,
 loader data paths, `pubify-data` dependencies, figure anchors in PowerPoint alt
 text, stat tokens in PowerPoint text, duplicate or unknown figure anchors,
-unknown stat ids, and split-run stat tokens.
+unknown stat ids, stat Alt Text anchors, and ambiguous stat-managed text boxes.
 
-See `powerpoint.md` for user-facing anchor authoring rules and supported shape
+See `usage.md` for user-facing anchor authoring rules and supported shape
 behavior.
 
 Source publications declared in `ppt.yaml` are code dependencies, not deck
@@ -120,16 +120,21 @@ are validation errors rather than silently changed layout.
 
 ## Stat Updates
 
-`ppt <presentation-id> stat update` computes all declared stats and replaces
-matching `{{stat:...}}` inline text tokens in the editable source deck.
-`ppt <presentation-id> stat <stat-id> update` computes and replaces only one
-selected stat, leaving unrelated stat tokens unchanged.
+`ppt <presentation-id> stat update` computes all declared stats and updates
+matching stat-managed text boxes in the editable source deck. `ppt
+<presentation-id> stat <stat-id> update` computes and replaces only one
+selected stat, leaving unrelated stat tokens or anchored values unchanged.
 
-Scalar stats replace `{{stat:<stat-id>}}`. Dictionary stats replace
-`{{stat:<stat-id>.<key>}}`. Replacement values are plain text. When a token is
-contained in a single PowerPoint run, the replacement preserves that run's
-formatting. Split-run tokens fail validation and must be retyped into one text
-run before update.
+New stats are authored with visible `{{stat:...}}` tokens. On first update,
+`pubify-ppt` replaces the visible token with the computed plain-text value and
+writes `{{stat:<id>=<previous_value>}}` or
+`{{stat:<id>.<key>=<previous_value>}}` into the text box Alt Text. Later
+updates read that Alt Text anchor, find the previous value exactly once in the
+same text box, replace it with the new value, and update the Alt Text marker.
+
+Valid visible stat tokens may span multiple internal PowerPoint runs. Each
+stat-managed text box supports one stat token; multiple stats should use
+separate text boxes.
 
 ## Deck Writes And Backups
 
