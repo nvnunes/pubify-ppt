@@ -53,6 +53,7 @@ def test_init_presentation_creates_starter_files_and_deck_anchors(tmp_path: Path
     assert '@data("example.csv")' in figures_source
     assert "def plot_example" in figures_source
     assert "def compute_example" in figures_source
+    assert "def tabulate_example" in figures_source
     assert (presentation_root / "data" / "example.csv").read_text(encoding="utf-8") == "x,y\n1,1\n2,4\n3,9\n"
 
     deck = Presentation(presentation_root / "deck.pptx")
@@ -61,6 +62,7 @@ def test_init_presentation_creates_starter_files_and_deck_anchors(tmp_path: Path
     text = "\n".join(shape.text for shape in slide.shapes if hasattr(shape, "text"))
     assert "{{fig:example}}" in descriptions
     assert "{{stat:example.count}}" in text
+    assert "{{table:example}}" in text
 
 
 def test_init_presentation_preserves_existing_user_files(tmp_path: Path) -> None:

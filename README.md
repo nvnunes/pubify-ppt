@@ -6,8 +6,8 @@ presentation-agnostic `pubify-data` runtime.
 It is intended for host workspaces that keep presentations, presentation-local
 data, and editable `.pptx` decks under version control. `pubify-ppt` owns the
 PowerPoint-specific workflow: locating deck anchors, rendering figures into
-slides, replacing inline stats, writing decks, and managing generated
-PowerPoint artifacts.
+slides, replacing inline stats, updating native tables, writing decks, and
+managing generated PowerPoint artifacts.
 
 This package does not own your presentations. A host workspace does.
 
@@ -22,13 +22,12 @@ This package does not own your presentations. A host workspace does.
 ## Current Status
 
 The package skeleton, initialization workflow, inventory commands, static
-presentation checks, figure updates, stat updates, full updates, generated-copy
-output, and in-place deck backups are in place. `ppt init` creates or updates
+presentation checks, figure updates, stat updates, table updates, full updates,
+generated-copy output, and in-place deck backups are in place. `ppt init`
+creates or updates
 workspace config, and `ppt init <presentation-id>` creates a starter
 presentation scaffold with `ppt.yaml`, `figures.py`, `deck.pptx`, and
 `data/ppt-artifacts/`.
-
-Tables are still planned work.
 
 ## Quick Start
 
@@ -51,6 +50,7 @@ ppt list
 ppt demo data list
 ppt demo figure list
 ppt demo stat list
+ppt demo table list
 ```
 
 Validate anchors, tokens, data paths, and dependencies:
@@ -109,6 +109,9 @@ ppt <presentation-id> figure <figure-id> update
 ppt <presentation-id> stat list
 ppt <presentation-id> stat update
 ppt <presentation-id> stat <stat-id> update
+ppt <presentation-id> table list
+ppt <presentation-id> table update
+ppt <presentation-id> table <table-id> update
 ppt <presentation-id> update
 ```
 
@@ -133,7 +136,14 @@ mutating `deck.pptx`.
 - After the first update, stat text boxes retain
   `{{stat:example.count=<previous_value>}}` in Alt Text so later updates can
   safely replace the previous visible value.
+- Table anchors use `{{table:example}}` in a placeholder's visible text or Alt
+  Text. Update replaces the placeholder with a native PowerPoint table and
+  persists the token in Alt Text.
+- Table headings can come from `TableResult(..., metadata={"columns": (...)})`
+  when a table is first created. Later updates preserve the PowerPoint heading
+  row and require the table to keep the same total row count and column count.
 - Simple rectangle placeholders and previously generated pictures are the
-  supported figure anchor shapes.
+  supported figure anchor shapes. Simple placeholders and generated native
+  tables are the supported table anchor shapes.
 - Grouped, rotated, cropped, animated, table-contained, chart-contained,
   SmartArt-contained, and embedded-object-contained anchors are unsupported.

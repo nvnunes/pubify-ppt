@@ -6,12 +6,10 @@
 runtime. It will use the same `figures.py` authoring model, loader execution,
 publication-local data-root behavior, and artifact-namespace foundation as
 other `pubify-data` downstreams, while owning only PowerPoint-specific
-behavior: `.pptx` deck loading, anchor discovery, artifact insertion, and
-deck writing.
+behavior: `.pptx` deck loading, anchor discovery, artifact insertion, native
+table updates, and deck writing.
 
-V1 supports figures and stats. Tables are included in the roadmap as a later
-phase once the PowerPoint anchoring, in-place update, and backup model is
-proven.
+V1 supports figures, stats, and native PowerPoint tables.
 
 ## Current Decisions
 
@@ -24,6 +22,12 @@ proven.
 - Figure anchors: PowerPoint alt text.
 - Stat anchors: visible text tokens for first update, then text box Alt Text
   markers that store the previous rendered value.
+- Table anchors: visible text or Alt Text tokens for first update, then native
+  PowerPoint table Alt Text.
+- Table headings: optional `metadata["columns"]` defaults are used only when a
+  table is first created; later updates preserve the PowerPoint heading row.
+- Table compatibility: updates mutate existing table cells only when total row
+  count and column count match the computed table.
 - Default output policy: update `deck.pptx` in place.
 - Optional output policy: support explicit `--output <path>` for generated
   copies.
@@ -31,7 +35,8 @@ proven.
 - Canonical generated artifacts: presentation-local `data/ppt-artifacts/`.
 - External storage policy: symlink the presentation-local `data/` directory
   when data should physically live elsewhere.
-- Tables: later phase using native PowerPoint tables.
+- Tables: native PowerPoint tables with optional creation-time headings from
+  `metadata["columns"]`.
 
 ## Proposed Folder Structure
 
@@ -110,6 +115,7 @@ pubify-ppt/
       anchors.py
       figures.py
       stats.py
+      tables.py
       backups.py
       assets/
         init/
@@ -119,6 +125,7 @@ pubify-ppt/
     test_config.py
     test_runtime.py
     test_anchors.py
+    test_tables.py
 ```
 
 Initial dependencies:
@@ -407,11 +414,12 @@ deck asset. It should contain one starter slide with:
 
 - one figure placeholder shape whose alt text is `{{fig:example}}`
 - one text box containing `{{stat:example.count}}`
+- one table placeholder shape containing `{{table:example}}`
 
 The starter `figures.py` should define matching example data, one example
-figure, and one dictionary stat with a `count` key. This makes
-`ppt init demo && ppt demo update` visibly useful and gives tests an end-to-end
-fixture. The source deck remains user-editable presentation source.
+figure, one dictionary stat with a `count` key, and one example table. This
+makes `ppt init demo && ppt demo update` visibly useful and gives tests an
+end-to-end fixture. The source deck remains user-editable presentation source.
 
 ## Test Plan
 
@@ -419,9 +427,10 @@ fixture. The source deck remains user-editable presentation source.
 - `pubify-data` adapter construction for `slides/<id>/figures.py`.
 - Presentation-local data root resolution, including when `data/` is a symlink.
 - `ppt-artifacts` namespace creation under the presentation-local data root.
-- Starter `ppt init <id>` creates `deck.pptx` with a figure anchor and stat
-  token using `python-pptx`.
-- Starter `ppt init <id>` creates matching example loaders, figure, and stat.
+- Starter `ppt init <id>` creates `deck.pptx` with figure, stat, and table
+  anchors using `python-pptx`.
+- Starter `ppt init <id>` creates matching example loaders, figure, stat, and
+  table.
 - Figure anchor detection from PowerPoint alt text.
 - Generated deck update replaces figure anchors with images at matching
   geometry.
@@ -509,7 +518,8 @@ fixture. The source deck remains user-editable presentation source.
 ### Phase 7: Tables
 
 - Add native PowerPoint table support using `python-pptx`.
-- Table anchors use alt text:
+- Table anchors use visible placeholder text for first update or persisted Alt
+  Text after creation:
 
 ```text
 {{table:<table_id>}}
@@ -518,8 +528,12 @@ fixture. The source deck remains user-editable presentation source.
 - Replace a simple placeholder shape with a PowerPoint table sized to the
   anchor box.
 - Use `pubify-data` table results as the neutral input.
+- Read default column headings from `TableResult.metadata["columns"]` only
+  when creating a native table from a token.
+- Update existing native table cells only when the PowerPoint table has the
+  same total row count and column count as the computed table.
+- Preserve existing native table heading cells on refresh.
+- On dimension mismatch, tell the user to adjust the native table size or
+  replace it with the original `{{table:...}}` token and rerun.
 - V1 table phase supports text-only cells, because PowerPoint table cells do
   not hold images or nested shapes.
-- Define table identity strategy in this phase before implementation. The key
-  decision is how future updates find a table after a placeholder shape has
-  been replaced by a native PowerPoint table.

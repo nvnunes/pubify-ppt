@@ -58,6 +58,7 @@ def validate_presentation_definition(presentation: PresentationDefinition) -> li
                 paths.deck_path,
                 figure_ids=set(presentation.figures),
                 stat_ids=set(presentation.stats),
+                table_ids=set(presentation.tables),
             )
         )
 

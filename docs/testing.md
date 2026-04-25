@@ -31,6 +31,7 @@ Build the docs with:
 - `tests/test_check.py`: static presentation validation and deck token checks
 - `tests/test_figures.py`: figure rendering and PowerPoint anchor replacement
 - `tests/test_stats.py`: inline stat replacement and targeted stat updates
+- `tests/test_tables.py`: native table replacement and targeted table updates
 - `tests/test_backups.py`: deck backup, retention, output-copy, and
   failed-write behavior
 - `tests/test_runtime.py`: package/runtime smoke coverage

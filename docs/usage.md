@@ -28,6 +28,10 @@ slides/demo/
     ppt-artifacts/
 ```
 
+The starter presentation includes a runnable example loader, figure, stat, and
+table plus matching deck anchors. Running `ppt demo update` replaces the
+starter figure, stat, and table tokens in `deck.pptx`.
+
 If you already have a deck, replace `slides/demo/deck.pptx` with your existing
 PowerPoint file after initialization.
 
@@ -115,8 +119,8 @@ papers/ao4elt8/
 Source outputs are reused from presentation-local wrapper functions:
 
 ```python
-from pubify_data import figure, stat
-from pubify_ppt import FigureResult, StatResult
+from pubify_data import figure, stat, table
+from pubify_ppt import FigureResult, StatResult, TableResult
 
 
 @figure
@@ -129,6 +133,12 @@ def plot_training_fov_ee(ctx):
 def compute_training_count(ctx):
     source_stat = ctx.source("ao4elt8").stat("training_count")
     return StatResult(source_stat.values[0].value)
+
+
+@table
+def tabulate_training_summary(ctx):
+    source_table = ctx.source("ao4elt8").table("training_summary")
+    return TableResult(source_table.bodies[0], metadata=source_table.metadata)
 ```
 
 The PowerPoint deck then uses only the local IDs:
@@ -136,6 +146,7 @@ The PowerPoint deck then uses only the local IDs:
 ```text
 {{fig:training_fov_ee}}
 {{stat:training_count}}
+{{table:training_summary}}
 ```
 
 This keeps the editable deck independent of source publication internals such
@@ -200,6 +211,52 @@ so the update can proceed safely.
 Each stat-managed text box supports one stat token. Split multiple stats into
 separate text boxes.
 
+## Authoring Tables
+
+New tables are authored with one placeholder token:
+
+```text
+{{table:<table_id>}}
+```
+
+The token can be either the placeholder's exact visible text or its Alt Text
+description. On first update, `pubify-ppt` replaces the placeholder with a
+native PowerPoint table at the same geometry and writes the same token into
+the table's Alt Text.
+
+Table functions can provide default column headings in `metadata["columns"]`:
+
+```python
+from pubify_data import table
+from pubify_ppt import TableResult
+
+
+@table
+def tabulate_summary(ctx):
+    rows = [
+        ("A", 10),
+        ("B", 20),
+    ]
+    return TableResult(rows, metadata={"columns": ("label", "value")})
+```
+
+When present, `metadata["columns"]` must be an ordered sequence of strings and
+its length must match the table data width. If it is omitted, first-time table
+creation uses blank heading cells. PowerPoint table cells are text-only in
+this implementation; `None` becomes an empty string and other values are
+converted with `str(...)`.
+
+On later updates, `pubify-ppt` finds the native table by Alt Text and mutates
+the existing body cells in place. The heading row is left as-is, so edits made
+in PowerPoint are preserved and `metadata["columns"]` is ignored after the
+native table exists. The table must keep the same total row count, including
+the heading row, and the same column count as the computed table. If the
+dimensions differ, adjust the PowerPoint table size or replace the table with
+the original `{{table:...}}` token and rerun the update.
+
+One `{{table:...}}` anchor maps to one native PowerPoint table. Multi-body
+table results are not supported in v1.
+
 ## Checking A Deck
 
 Run:
@@ -209,8 +266,8 @@ ppt demo check
 ```
 
 This catches missing data files, unknown anchors, duplicate anchors, malformed
-tokens, unsupported figure anchor shapes, and ambiguous stat-managed text boxes
-before an update writes the deck.
+tokens, unsupported figure/table anchor shapes, and ambiguous stat-managed text
+boxes before an update writes the deck.
 
 ## Updating A Deck
 
@@ -225,6 +282,7 @@ Targeted updates are available when iterating on one surface:
 ```bash
 ppt demo figure <figure-id> update
 ppt demo stat <stat-id> update
+ppt demo table <table-id> update
 ```
 
 Update output reports the slide and replacement that changed:
@@ -232,6 +290,7 @@ Update output reports the slide and replacement that changed:
 ```text
 Slide 1: {{fig:example}} = example.png
 Slide 1: {{stat:example.count}} = 3
+Slide 1: {{table:example}} = 4 rows x 2 columns
 ```
 
 When the same token appears multiple times on a slide, repeated replacements
@@ -251,8 +310,8 @@ ppt demo update --output exports/demo-review.pptx
 ```
 
 Generated copies do not create backups and do not update the source deck's
-embedded pictures or stat text. Do not treat generated copies as the canonical
-editable source. Continue editing `slides/demo/deck.pptx`.
+embedded pictures, stat text, or native tables. Do not treat generated copies
+as the canonical editable source. Continue editing `slides/demo/deck.pptx`.
 
 ## Backups
 

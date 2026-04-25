@@ -64,4 +64,5 @@ path/to/pubify-ppt/.conda/bin/ppt demo update
 
 The update should create `slides/demo/data/ppt-artifacts/figures/example.png`,
 replace the starter figure anchor in `deck.pptx`, replace the starter stat
-token, and create a timestamped deck backup.
+token, replace the starter table token with a native PowerPoint table, and
+create a timestamped deck backup.

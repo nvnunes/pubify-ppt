@@ -99,6 +99,57 @@ def test_validate_presentation_reports_malformed_visible_figure_anchor(tmp_path:
     assert "Slide 1: malformed figure anchor token '{{fig:example:0}}'" in errors
 
 
+def test_validate_presentation_reports_unknown_table_anchor(tmp_path: Path) -> None:
+    init_workspace(tmp_path)
+    init_presentation_by_id(tmp_path, "demo")
+    deck_path = tmp_path / "slides" / "demo" / "deck.pptx"
+    deck = Presentation(deck_path)
+    shape = deck.slides[0].shapes.add_shape(
+        MSO_SHAPE.RECTANGLE,
+        Inches(0.5),
+        Inches(0.5),
+        Inches(1.0),
+        Inches(1.0),
+    )
+    shape.text = "{{table:missing}}"
+    deck.save(deck_path)
+    presentation = load_presentation_definition(tmp_path, "demo")
+
+    errors = validate_presentation_definition(presentation)
+
+    assert "Slide 1: unknown table anchor {{table:missing}}" in errors
+
+
+def test_validate_presentation_reports_duplicate_table_anchor(tmp_path: Path) -> None:
+    init_workspace(tmp_path)
+    init_presentation_by_id(tmp_path, "demo")
+    deck_path = tmp_path / "slides" / "demo" / "deck.pptx"
+    deck = Presentation(deck_path)
+    slide = deck.slides[0]
+    slide.shapes.add_textbox(Inches(0.5), Inches(5.5), Inches(2.0), Inches(0.5)).text = "{{table:example}}"
+    slide.shapes.add_textbox(Inches(3.0), Inches(5.5), Inches(2.0), Inches(0.5)).text = "{{table:example}}"
+    deck.save(deck_path)
+    presentation = load_presentation_definition(tmp_path, "demo")
+
+    errors = validate_presentation_definition(presentation)
+
+    assert "Slide 1: duplicate table anchor {{table:example}}" in errors
+
+
+def test_validate_presentation_reports_malformed_visible_table_anchor(tmp_path: Path) -> None:
+    init_workspace(tmp_path)
+    init_presentation_by_id(tmp_path, "demo")
+    deck_path = tmp_path / "slides" / "demo" / "deck.pptx"
+    deck = Presentation(deck_path)
+    deck.slides[0].shapes.add_textbox(Inches(0.5), Inches(5.5), Inches(2.0), Inches(0.5)).text = "{{table:}}"
+    deck.save(deck_path)
+    presentation = load_presentation_definition(tmp_path, "demo")
+
+    errors = validate_presentation_definition(presentation)
+
+    assert "Slide 1: malformed table anchor token '{{table:}}'" in errors
+
+
 def test_check_presentation_accepts_workspace_relative_external_data_root(tmp_path: Path) -> None:
     init_workspace(tmp_path)
     init_presentation_by_id(tmp_path, "demo")
@@ -125,7 +176,7 @@ def test_check_presentation_accepts_workspace_relative_external_data_root(tmp_pa
     (presentation_root / "figures.py").write_text(
         "\n".join(
             [
-                "from pubify_data import external_data, figure, stat",
+                "from pubify_data import external_data, figure, stat, table",
                 "@external_data('raw', 'source.txt')",
                 "def load_example(ctx, path):",
                 "    return path.read_text(encoding='utf-8')",
@@ -135,6 +186,9 @@ def test_check_presentation_accepts_workspace_relative_external_data_root(tmp_pa
                 "@stat",
                 "def compute_example(ctx, example):",
                 "    return {'count': len(example)}",
+                "@table",
+                "def tabulate_example(ctx, example):",
+                "    return [[example]]",
             ]
         )
         + "\n",

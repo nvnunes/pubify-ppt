@@ -111,6 +111,8 @@ def test_cli_inventory_and_check_commands(
     assert capsys.readouterr().out.splitlines() == ["example"]
     assert main(["demo", "stat", "list"]) == 0
     assert capsys.readouterr().out.splitlines() == ["example"]
+    assert main(["demo", "table", "list"]) == 0
+    assert capsys.readouterr().out.splitlines() == ["example"]
     assert main(["demo", "check"]) == 0
     assert capsys.readouterr().out.strip() == "demo: ok"
 
@@ -146,7 +148,22 @@ def test_cli_stat_update_writes_deck(
     assert capsys.readouterr().out.splitlines() == ["Slide 1: {{stat:example.count}} = 3"]
 
 
-def test_cli_full_update_writes_figures_and_stats(
+def test_cli_table_update_writes_deck(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    main(["init"])
+    main(["init", "demo"])
+    capsys.readouterr()
+
+    assert main(["demo", "table", "update"]) == 0
+
+    assert capsys.readouterr().out.splitlines() == ["Slide 1: {{table:example}} = 4 rows x 2 columns"]
+
+
+def test_cli_full_update_writes_figures_stats_and_tables(
     tmp_path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
@@ -161,6 +178,7 @@ def test_cli_full_update_writes_figures_and_stats(
     output = capsys.readouterr().out.splitlines()
     assert output[0] == "Slide 1: {{fig:example}} = example.png"
     assert output[1] == "Slide 1: {{stat:example.count}} = 3"
+    assert output[2] == "Slide 1: {{table:example}} = 4 rows x 2 columns"
 
 
 def test_cli_full_update_reports_replacements_in_slide_order(
@@ -183,6 +201,7 @@ def test_cli_full_update_reports_replacements_in_slide_order(
         Inches(3),
         Inches(2),
     ).text = "{{fig:example}}"
+    second.shapes.add_textbox(Inches(4.0), Inches(0.5), Inches(3), Inches(1.5)).text = "{{table:example}}"
     deck.save(presentation_root / "deck.pptx")
     capsys.readouterr()
 
@@ -191,6 +210,7 @@ def test_cli_full_update_reports_replacements_in_slide_order(
     assert capsys.readouterr().out.splitlines() == [
         "Slide 1: {{stat:example.count}} = 3",
         "Slide 2: {{fig:example}} = example.png",
+        "Slide 2: {{table:example}} = 4 rows x 2 columns",
     ]
 
 

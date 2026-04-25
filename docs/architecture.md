@@ -16,6 +16,7 @@ Package-owned behavior:
 - PowerPoint anchor and token discovery
 - figure rendering into deck image placeholders
 - inline stat replacement
+- native table replacement
 - deck backups and generated PowerPoint artifact lifecycle
 
 Upstream-owned behavior:
@@ -69,7 +70,9 @@ when the file already exists without one, and creates the configured
 `ppt init <presentation-id>` creates the presentation folder, preserves an
 existing `data/` directory or symlink, creates `data/ppt-artifacts/figures/`
 and `data/ppt-artifacts/backups/`, and writes starter `ppt.yaml`, `figures.py`,
-`example.csv`, and `deck.pptx` only when those files are missing.
+`example.csv`, and `deck.pptx` only when those files are missing. The starter
+entrypoint defines one example loader, figure, stat, and table; the starter
+deck contains matching figure, stat, and table anchors.
 
 ## Discovery And Checks
 
@@ -78,13 +81,14 @@ and `data/ppt-artifacts/backups/`, and writes starter `ppt.yaml`, `figures.py`,
 Workspace-relative `external_data_roots` in `ppt.yaml` resolve relative to the
 workspace root.
 
-Read-only inventory commands list decorated loaders, figures, and stats from
-the loaded presentation entrypoint.
+Read-only inventory commands list decorated loaders, figures, stats, and tables
+from the loaded presentation entrypoint.
 
 `ppt <presentation-id> check` validates config, required presentation paths,
-loader data paths, `pubify-data` dependencies, figure anchors in PowerPoint alt
-text, stat tokens in PowerPoint text, duplicate or unknown figure anchors,
-unknown stat ids, stat Alt Text anchors, and ambiguous stat-managed text boxes.
+loader data paths, `pubify-data` dependencies, figure/table anchors in
+PowerPoint alt text or exact placeholder text, stat tokens in PowerPoint text,
+duplicate or unknown figure/table anchors, unknown stat ids, stat Alt Text
+anchors, and ambiguous stat-managed text boxes.
 
 See `usage.md` for user-facing anchor authoring rules and supported shape
 behavior.
@@ -136,6 +140,32 @@ Valid visible stat tokens may span multiple internal PowerPoint runs. Each
 stat-managed text box supports one stat token; multiple stats should use
 separate text boxes.
 
+## Table Updates
+
+`ppt <presentation-id> table update` computes all table results with matching
+anchors and updates native PowerPoint tables in the editable source deck. `ppt
+<presentation-id> table <table-id> update` computes and replaces only one
+selected table.
+
+New tables are authored with a simple placeholder whose visible text or Alt
+Text description is exactly `{{table:<table_id>}}`. On first update,
+`pubify-ppt` replaces that placeholder with a native PowerPoint table at the
+same geometry and persists the token in the table shape Alt Text. Future
+updates find the table through that Alt Text.
+
+`pubify-data` owns neutral table result normalization. `pubify-ppt` requires
+one body per PowerPoint table and can read default creation-time column
+headings from `metadata["columns"]`. When present, headings must be strings
+and must match the computed data width. Table cells are plain text: `None`
+becomes an empty string and all other values use `str(...)`.
+
+Existing native tables are updated in place only when the PowerPoint table has
+the same total row count, including the heading row, and the same column count
+as the computed table. Refreshes rewrite only body cells and preserve the
+PowerPoint heading row exactly as the user edited it. Dimension mismatches are
+validation errors for that update; the user can either adjust the native table
+size or replace it with the original `{{table:...}}` placeholder.
+
 ## Deck Writes And Backups
 
 Write commands mutate `deck.pptx` in place by default. Before replacing the
@@ -155,5 +185,5 @@ successful in-place write and keeps the newest `backup_retention` backups from
 mutate `deck.pptx`. Generated figure PNGs are still refreshed under
 `data/ppt-artifacts/figures/` when figure rendering is part of the command.
 
-`ppt <presentation-id> update` refreshes all figures and stats in one open deck
-and performs one final write through the same backup/output policy.
+`ppt <presentation-id> update` refreshes all figures, stats, and tables in one
+open deck and performs one final write through the same backup/output policy.

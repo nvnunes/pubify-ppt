@@ -25,6 +25,7 @@ PRESENTATION_ENTRYPOINT = "figures.py"
 STARTER_DATA_FILENAME = "example.csv"
 STARTER_FIGURE_TOKEN = "{{fig:example}}"
 STARTER_STAT_TOKEN = "{{stat:example.count}}"
+STARTER_TABLE_TOKEN = "{{table:example}}"
 
 
 def init_workspace(workspace_root: Path) -> Path:
@@ -73,7 +74,7 @@ def write_starter_figures_module(path: Path) -> None:
 
 
 def write_starter_deck(path: Path) -> None:
-    """Create the starter editable source deck with one figure and one stat anchor."""
+    """Create the starter editable source deck with figure, stat, and table anchors."""
 
     path.parent.mkdir(parents=True, exist_ok=True)
     deck = Presentation()
@@ -95,6 +96,18 @@ def write_starter_deck(path: Path) -> None:
 
     stat_box = slide.shapes.add_textbox(Inches(0.8), Inches(4.85), Inches(5.6), Inches(0.6))
     stat_box.text = f"Example count: {STARTER_STAT_TOKEN}"
+
+    table_label = slide.shapes.add_textbox(Inches(6.75), Inches(1.0), Inches(2.4), Inches(0.35))
+    table_label.text = "Example table"
+
+    table_shape = slide.shapes.add_shape(
+        MSO_SHAPE.RECTANGLE,
+        Inches(6.75),
+        Inches(1.45),
+        Inches(2.25),
+        Inches(1.35),
+    )
+    table_shape.text = STARTER_TABLE_TOKEN
 
     deck.save(path)
 
@@ -146,8 +159,8 @@ import csv
 import matplotlib.pyplot as plt
 import numpy as np
 
-from pubify_data import data, figure, stat
-from pubify_ppt import FigureResult, StatResult
+from pubify_data import data, figure, stat, table
+from pubify_ppt import FigureResult, StatResult, TableResult
 
 
 @data("example.csv")
@@ -173,4 +186,10 @@ def plot_example(ctx, example):
 @stat
 def compute_example(ctx, example):
     return StatResult({"count": example["x"].size})
+
+
+@table
+def tabulate_example(ctx, example):
+    rows = list(zip(example["x"].astype(int), example["y"].astype(int)))
+    return TableResult(rows, metadata={"columns": ("x", "y")})
 '''

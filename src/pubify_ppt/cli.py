@@ -14,6 +14,7 @@ from pubify_ppt.figures import update_figures_in_deck
 from pubify_ppt.init import init_presentation_by_id, init_workspace
 from pubify_ppt.runtime import check_presentation
 from pubify_ppt.stats import StatReplacement, update_stats_to_output
+from pubify_ppt.tables import TableReplacement, update_tables_to_output
 from pubify_ppt.update import update_presentation
 
 
@@ -37,6 +38,9 @@ def build_parser() -> argparse.ArgumentParser:
                 "  ppt <presentation-id> stat list",
                 "  ppt <presentation-id> stat update [--output <path>]",
                 "  ppt <presentation-id> stat <stat-id> update [--output <path>]",
+                "  ppt <presentation-id> table list",
+                "  ppt <presentation-id> table update [--output <path>]",
+                "  ppt <presentation-id> table <table-id> update [--output <path>]",
                 "  ppt <presentation-id> update [--output <path>]",
                 "",
                 f"Workspace config section: {WORKSPACE_CONFIG_SECTION}",
@@ -125,17 +129,18 @@ def _run_presentation_command(parser: argparse.ArgumentParser, args: argparse.Na
         if any(value is not None for value in (args.arg3, args.arg4, args.arg5)):
             parser.error("update does not accept additional arguments")
         result = update_presentation(presentation, output=_output_path(args.output))
-        for line in _replacement_lines(result.figure_outputs, result.stat_replacements):
+        for line in _replacement_lines(result.figure_outputs, result.stat_replacements, result.table_replacements):
             print(line)
         return 0
 
-    if args.arg2 in {"data", "figure", "stat"}:
+    if args.arg2 in {"data", "figure", "stat", "table"}:
         if args.arg3 == "list" and args.arg4 is None and args.arg5 is None:
             _reject_output(parser, f"{args.arg2} list", args.output)
             values = {
                 "data": presentation.loaders,
                 "figure": presentation.figures,
                 "stat": presentation.stats,
+                "table": presentation.tables,
             }[args.arg2]
             for item_id in sorted(values):
                 print(item_id)
@@ -143,23 +148,33 @@ def _run_presentation_command(parser: argparse.ArgumentParser, args: argparse.Na
         if args.arg2 == "figure" and args.arg3 == "update" and args.arg4 is None and args.arg5 is None:
             result = update_figures_in_deck(presentation)
             write_deck(presentation, result.deck, output=_output_path(args.output))
-            for line in _replacement_lines(result.outputs, ()):
+            for line in _replacement_lines(result.outputs, (), ()):
                 print(line)
             return 0
         if args.arg2 == "figure" and args.arg4 == "update" and args.arg3 is not None and args.arg5 is None:
             result = update_figures_in_deck(presentation, figure_id=args.arg3)
             write_deck(presentation, result.deck, output=_output_path(args.output))
-            for line in _replacement_lines(result.outputs, ()):
+            for line in _replacement_lines(result.outputs, (), ()):
                 print(line)
             return 0
         if args.arg2 == "stat" and args.arg3 == "update" and args.arg4 is None and args.arg5 is None:
             replacements = update_stats_to_output(presentation, output=_output_path(args.output))
-            for line in _replacement_lines((), replacements):
+            for line in _replacement_lines((), replacements, ()):
                 print(line)
             return 0
         if args.arg2 == "stat" and args.arg4 == "update" and args.arg3 is not None and args.arg5 is None:
             replacements = update_stats_to_output(presentation, stat_id=args.arg3, output=_output_path(args.output))
-            for line in _replacement_lines((), replacements):
+            for line in _replacement_lines((), replacements, ()):
+                print(line)
+            return 0
+        if args.arg2 == "table" and args.arg3 == "update" and args.arg4 is None and args.arg5 is None:
+            replacements = update_tables_to_output(presentation, output=_output_path(args.output))
+            for line in _replacement_lines((), (), replacements):
+                print(line)
+            return 0
+        if args.arg2 == "table" and args.arg4 == "update" and args.arg3 is not None and args.arg5 is None:
+            replacements = update_tables_to_output(presentation, table_id=args.arg3, output=_output_path(args.output))
+            for line in _replacement_lines((), (), replacements):
                 print(line)
             return 0
         parser.error(f"unsupported {args.arg2} command")
@@ -179,6 +194,7 @@ def _slide_line(slide_number: int, value: str) -> str:
 def _replacement_lines(
     figure_outputs: tuple[FigureOutput, ...],
     stat_replacements: tuple[StatReplacement, ...],
+    table_replacements: tuple[TableReplacement, ...],
 ) -> list[str]:
     records = [
         (output.slide_number, output.shape_index, output.token, output.path.name)
@@ -186,6 +202,9 @@ def _replacement_lines(
     ] + [
         (replacement.slide_number, replacement.shape_index, replacement.token, replacement.value)
         for replacement in stat_replacements
+    ] + [
+        (replacement.slide_number, replacement.shape_index, replacement.token, replacement.summary)
+        for replacement in table_replacements
     ]
     records.sort(key=lambda item: (item[0], item[1]))
     totals = Counter((slide_number, token) for slide_number, _shape_index, token, _value in records)
