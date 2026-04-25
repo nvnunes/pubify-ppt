@@ -57,7 +57,7 @@ command.
 
 ## Stat Tokens
 
-Stats are inline text tokens in PowerPoint text boxes:
+New stats are authored as inline text tokens in PowerPoint text boxes:
 
 ```text
 {{stat:<stat_id>}}
@@ -67,10 +67,27 @@ Stats are inline text tokens in PowerPoint text boxes:
 Scalar stats use `{{stat:<stat_id>}}`. Dictionary stats use
 `{{stat:<stat_id>.<key>}}`.
 
-When a stat token is fully contained in one PowerPoint text run, replacement
-preserves that run's formatting. If PowerPoint splits a token across multiple
-runs, `check` and update commands fail. Retype the full token in one operation
-inside PowerPoint to put it back into a single run.
+PowerPoint may split a visible token across multiple internal text runs,
+especially around punctuation or spell-check boundaries. `pubify-ppt` treats
+the paragraph text as the source token stream, so valid split-run tokens are
+supported.
+
+On first update, `pubify-ppt` replaces the visible token with the computed
+value and writes the prior rendered value into the text box Alt Text:
+
+```text
+{{stat:<stat_id>=<previous_value>}}
+{{stat:<stat_id>.<key>=<previous_value>}}
+```
+
+On later updates, `pubify-ppt` reads that Alt Text anchor, finds the previous
+value in the same text box, replaces it with the newly computed value, and
+updates the Alt Text. The previous value must appear exactly once. If it is not
+found, restore the previous value or reinsert the original `{{stat:...}}` token
+so the update can proceed safely.
+
+Each stat-managed text box supports one stat token. Split multiple stats into
+separate text boxes.
 
 ## Output And Backups
 

@@ -23,11 +23,20 @@ EMU_PER_INCH = 914400
 
 
 @dataclass(frozen=True)
+class FigureOutput:
+    """One rendered figure output and the slide it was applied to."""
+
+    slide_number: int
+    token: str
+    path: Path
+
+
+@dataclass(frozen=True)
 class FigureUpdateResult:
     """Figure update changes applied to an open deck."""
 
     deck: PresentationObject
-    outputs: tuple[Path, ...]
+    outputs: tuple[FigureOutput, ...]
 
 
 def update_figures(
@@ -39,7 +48,7 @@ def update_figures(
 
     result = update_figures_in_deck(presentation, figure_id=figure_id)
     write_deck(presentation, result.deck)
-    return result.outputs
+    return tuple(output.path for output in result.outputs)
 
 
 def update_figures_to_output(
@@ -52,7 +61,7 @@ def update_figures_to_output(
 
     result = update_figures_in_deck(presentation, figure_id=figure_id)
     write_deck(presentation, result.deck, output=output)
-    return result.outputs
+    return tuple(item.path for item in result.outputs)
 
 
 def update_figures_in_deck(
@@ -73,7 +82,7 @@ def update_figures_in_deck(
     active_deck = deck if deck is not None else Presentation(presentation.paths.deck_path)
     anchors = discover_figure_anchors_in_deck(active_deck)
     rendered = _run_selected_figures(presentation, selected_ids)
-    outputs: list[Path] = []
+    outputs: list[FigureOutput] = []
     _clear_selected_figure_pngs(presentation, selected_ids)
 
     for current_id in selected_ids:
@@ -89,7 +98,7 @@ def update_figures_in_deck(
                 dpi=presentation.config.defaults.dpi,
             )
             _replace_anchor_with_picture(anchor, output_path)
-            outputs.append(output_path)
+            outputs.append(FigureOutput(anchor.slide_number, anchor.token, output_path))
 
     return FigureUpdateResult(active_deck, tuple(outputs))
 

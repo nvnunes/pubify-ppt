@@ -7,7 +7,7 @@ from pptx import Presentation
 
 from pubify_ppt.backups import write_deck
 from pubify_ppt.discovery import PresentationDefinition
-from pubify_ppt.figures import update_figures_in_deck
+from pubify_ppt.figures import FigureOutput, update_figures_in_deck
 from pubify_ppt.runtime import check_presentation, ensure_generated_artifact_paths
 from pubify_ppt.stats import StatReplacement, update_stats_in_deck
 
@@ -16,7 +16,7 @@ from pubify_ppt.stats import StatReplacement, update_stats_in_deck
 class PresentationUpdateResult:
     """Artifacts and replacements produced by a full presentation update."""
 
-    figure_outputs: tuple[Path, ...]
+    figure_outputs: tuple[FigureOutput, ...]
     stat_replacements: tuple[StatReplacement, ...]
 
 

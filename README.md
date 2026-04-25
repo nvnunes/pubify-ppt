@@ -123,6 +123,11 @@ mutating `deck.pptx`.
 - Multi-panel figures use one explicit anchor per panel, for example
   `{{fig:comparison:1}}`.
 - Stat tokens live in text boxes, for example `{{stat:example.count}}`.
+- Valid stat tokens remain supported if PowerPoint splits them across internal
+  text runs.
+- After the first update, stat text boxes retain
+  `{{stat:example.count=<previous_value>}}` in Alt Text so later updates can
+  safely replace the previous visible value.
 - Simple rectangle placeholders and previously generated pictures are the
   supported figure anchor shapes.
 - Grouped, rotated, cropped, animated, table-contained, chart-contained,

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import pytest
+from pptx import Presentation
+from pptx.util import Inches
 
 from pubify_ppt.cli import build_parser, main
 
@@ -125,8 +127,7 @@ def test_cli_figure_update_writes_png_and_deck(
 
     assert main(["demo", "figure", "update"]) == 0
 
-    output = capsys.readouterr().out.strip()
-    assert output.endswith("slides/demo/data/ppt-artifacts/figures/example.png")
+    assert capsys.readouterr().out.strip() == "Slide 1: {{fig:example}} = example.png"
     assert (tmp_path / "slides" / "demo" / "data" / "ppt-artifacts" / "figures" / "example.png").is_file()
 
 
@@ -142,7 +143,7 @@ def test_cli_stat_update_writes_deck(
 
     assert main(["demo", "stat", "update"]) == 0
 
-    assert capsys.readouterr().out.splitlines() == ["{{stat:example.count}}"]
+    assert capsys.readouterr().out.splitlines() == ["Slide 1: {{stat:example.count}} = 3"]
 
 
 def test_cli_full_update_writes_figures_and_stats(
@@ -158,8 +159,8 @@ def test_cli_full_update_writes_figures_and_stats(
     assert main(["demo", "update"]) == 0
 
     output = capsys.readouterr().out.splitlines()
-    assert output[0].endswith("slides/demo/data/ppt-artifacts/figures/example.png")
-    assert output[1] == "{{stat:example.count}}"
+    assert output[0] == "Slide 1: {{fig:example}} = example.png"
+    assert output[1] == "Slide 1: {{stat:example.count}} = 3"
 
 
 def test_cli_output_writes_generated_copy(
@@ -175,3 +176,51 @@ def test_cli_output_writes_generated_copy(
     assert main(["demo", "stat", "update", "--output", "copy.pptx"]) == 0
 
     assert (tmp_path / "copy.pptx").is_file()
+
+
+def test_cli_runtime_error_omits_usage_banner(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    main(["init"])
+    main(["init", "demo"])
+    deck_path = tmp_path / "slides" / "demo" / "deck.pptx"
+    deck = Presentation(deck_path)
+    deck.slides[0].shapes.add_textbox(Inches(0.5), Inches(5.5), Inches(4.0), Inches(0.5)).text = (
+        "{{stat:example.missing}}"
+    )
+    deck.save(deck_path)
+    capsys.readouterr()
+
+    assert main(["demo", "stat", "update"]) == 1
+
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "Error: Missing key 'missing' for stat 'example'" in captured.err
+    assert "usage:" not in captured.err
+
+
+def test_cli_labels_repeated_replacements_with_occurrence_index(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    main(["init"])
+    main(["init", "demo"])
+    deck_path = tmp_path / "slides" / "demo" / "deck.pptx"
+    deck = Presentation(deck_path)
+    deck.slides[0].shapes.add_textbox(Inches(0.5), Inches(5.5), Inches(4.0), Inches(0.5)).text = (
+        "{{stat:example.count}}"
+    )
+    deck.save(deck_path)
+    capsys.readouterr()
+
+    assert main(["demo", "stat", "update"]) == 0
+
+    assert capsys.readouterr().out.splitlines() == [
+        "Slide 1: {{stat:example.count}} [1/2] = 3",
+        "Slide 1: {{stat:example.count}} [2/2] = 3",
+    ]

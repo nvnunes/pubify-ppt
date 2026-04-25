@@ -100,7 +100,7 @@ def test_check_presentation_accepts_workspace_relative_external_data_root(tmp_pa
     check_presentation(presentation)
 
 
-def test_check_presentation_reports_split_run_stat_token(tmp_path: Path) -> None:
+def test_check_presentation_accepts_split_run_stat_token(tmp_path: Path) -> None:
     init_workspace(tmp_path)
     init_presentation_by_id(tmp_path, "demo")
     deck_path = tmp_path / "slides" / "demo" / "deck.pptx"
@@ -112,7 +112,22 @@ def test_check_presentation_reports_split_run_stat_token(tmp_path: Path) -> None
     deck.save(deck_path)
     presentation = load_presentation_definition(tmp_path, "demo")
 
-    with pytest.raises(ValueError, match="split across PowerPoint runs"):
+    check_presentation(presentation)
+
+
+def test_check_presentation_reports_malformed_split_run_stat_token(tmp_path: Path) -> None:
+    init_workspace(tmp_path)
+    init_presentation_by_id(tmp_path, "demo")
+    deck_path = tmp_path / "slides" / "demo" / "deck.pptx"
+    deck = Presentation(deck_path)
+    text_box = deck.slides[0].shapes.add_textbox(Inches(0.5), Inches(5.5), Inches(5.0), Inches(0.5))
+    paragraph = text_box.text_frame.paragraphs[0]
+    paragraph.add_run().text = "{{stat:example"
+    paragraph.add_run().text = " count}}"
+    deck.save(deck_path)
+    presentation = load_presentation_definition(tmp_path, "demo")
+
+    with pytest.raises(ValueError, match="malformed stat token"):
         check_presentation(presentation)
 
 
