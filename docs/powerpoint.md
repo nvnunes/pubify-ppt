@@ -17,8 +17,7 @@ update` to regenerate content at the current deck geometry.
 
 ## Figure Anchors
 
-Figure anchors use PowerPoint alt text. In PowerPoint, set the shape's
-description alt text to one of these tokens:
+Figure anchors use PowerPoint alt text as their persistent managed state:
 
 ```text
 {{fig:<figure_id>}}
@@ -32,6 +31,18 @@ one explicit anchor per panel, using one-based panel numbers such as
 Figure updates replace the anchor shape with an embedded PNG and preserve the
 same figure token in the inserted picture's alt text. Future updates use that
 picture as the next anchor.
+
+For first-time bootstrapping, you can also draw a supported shape and set its
+visible text to exactly one figure token, with no surrounding text:
+
+```text
+{{fig:<figure_id>}}
+```
+
+On update, `pubify-ppt` treats that shape as a figure anchor, replaces it with
+the rendered picture, and writes the same token into the picture's alt text.
+If a shape has both figure-token alt text and visible figure-token text, they
+must match.
 
 Figure anchors must reference presentation-local figure IDs defined in the
 presentation's `figures.py`. Source publication IDs are not valid PowerPoint
@@ -91,6 +102,8 @@ Supported in the current implementation:
 
 - plain rectangle or freeform placeholder shapes with a valid `{{fig:...}}`
   token in alt text
+- plain rectangle or freeform placeholder shapes whose visible text is exactly
+  one valid `{{fig:...}}` token
 - existing picture shapes created by a previous `ppt ... figure update` or
   `ppt ... update`
 

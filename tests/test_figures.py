@@ -28,6 +28,26 @@ def test_update_figures_replaces_starter_anchor_with_picture(tmp_path: Path) -> 
     assert _shape_alt_text(pictures[0]) == "{{fig:example}}"
 
 
+def test_update_figures_bootstraps_anchor_from_exact_shape_text(tmp_path: Path) -> None:
+    init_workspace(tmp_path)
+    init_presentation_by_id(tmp_path, "demo")
+    presentation_root = tmp_path / "slides" / "demo"
+    deck = Presentation()
+    slide = deck.slides.add_slide(deck.slide_layouts[6])
+    shape = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, Inches(0.5), Inches(0.5), Inches(3), Inches(2))
+    shape.text = "{{fig:example}}"
+    deck.save(presentation_root / "deck.pptx")
+    presentation = load_presentation_definition(tmp_path, "demo")
+
+    outputs = update_figures(presentation)
+
+    assert [path.name for path in outputs] == ["example.png"]
+    deck = Presentation(presentation_root / "deck.pptx")
+    pictures = [shape for shape in deck.slides[0].shapes if shape.shape_type == MSO_SHAPE_TYPE.PICTURE]
+    assert len(pictures) == 1
+    assert _shape_alt_text(pictures[0]) == "{{fig:example}}"
+
+
 def test_update_figures_can_update_existing_picture_anchor(tmp_path: Path) -> None:
     init_workspace(tmp_path)
     init_presentation_by_id(tmp_path, "demo")

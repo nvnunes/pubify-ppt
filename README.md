@@ -120,6 +120,9 @@ mutating `deck.pptx`.
 
 - Figure anchors live in PowerPoint alt text, for example
   `{{fig:example}}`.
+- To bootstrap a figure, draw a supported shape and set its visible text
+  exactly to `{{fig:example}}`; update will replace it with a picture and carry
+  the token forward in Alt Text.
 - Multi-panel figures use one explicit anchor per panel, for example
   `{{fig:comparison:1}}`.
 - Reused paper outputs are declared in `ppt.yaml` under `sources:` and exposed

@@ -181,16 +181,17 @@ def _replacement_lines(
     stat_replacements: tuple[StatReplacement, ...],
 ) -> list[str]:
     records = [
-        (output.slide_number, output.token, output.path.name)
+        (output.slide_number, output.shape_index, output.token, output.path.name)
         for output in figure_outputs
     ] + [
-        (replacement.slide_number, replacement.token, replacement.value)
+        (replacement.slide_number, replacement.shape_index, replacement.token, replacement.value)
         for replacement in stat_replacements
     ]
-    totals = Counter((slide_number, token) for slide_number, token, _value in records)
+    records.sort(key=lambda item: (item[0], item[1]))
+    totals = Counter((slide_number, token) for slide_number, _shape_index, token, _value in records)
     seen: defaultdict[tuple[int, str], int] = defaultdict(int)
     lines: list[str] = []
-    for slide_number, token, value in records:
+    for slide_number, _shape_index, token, value in records:
         key = (slide_number, token)
         seen[key] += 1
         suffix = f" [{seen[key]}/{totals[key]}]" if totals[key] > 1 else ""

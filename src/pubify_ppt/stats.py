@@ -19,6 +19,7 @@ class StatReplacement:
     """One stat token replacement applied to a deck."""
 
     slide_number: int
+    shape_index: int
     stat_id: str
     key: str | None
     token: str
@@ -86,16 +87,30 @@ def update_stats_in_deck(
     replacements: list[StatReplacement] = []
 
     for slide_number, slide in enumerate(active_deck.slides, start=1):
-        for shape in slide.shapes:
+        for shape_index, shape in enumerate(slide.shapes, start=1):
             if getattr(shape, "text_frame", None) is None:
                 continue
             anchor = _parse_rendered_stat_anchor(shape_alt_text(shape), stat_ids=selected_ids)
             if anchor is not None:
                 if anchor.stat_id in selected_ids:
-                    replacements.append(_refresh_anchored_stat(shape, slide_number=slide_number, anchor=anchor, values=values))
+                    replacements.append(
+                        _refresh_anchored_stat(
+                            shape,
+                            slide_number=slide_number,
+                            shape_index=shape_index,
+                            anchor=anchor,
+                            values=values,
+                        )
+                    )
                 continue
             replacements.extend(
-                _replace_new_stat_token(shape, slide_number=slide_number, selected_ids=selected_ids, values=values)
+                _replace_new_stat_token(
+                    shape,
+                    slide_number=slide_number,
+                    shape_index=shape_index,
+                    selected_ids=selected_ids,
+                    values=values,
+                )
             )
 
     return StatUpdateResult(active_deck, tuple(replacements))
@@ -127,6 +142,7 @@ def _replace_new_stat_token(
     shape: object,
     *,
     slide_number: int,
+    shape_index: int,
     selected_ids: tuple[str, ...],
     values: dict[tuple[str, str | None], str],
 ) -> tuple[StatReplacement, ...]:
@@ -154,13 +170,14 @@ def _replace_new_stat_token(
         ),
     )
     set_shape_alt_text(shape, _rendered_stat_anchor(token, value))
-    return (StatReplacement(slide_number, stat_id, key, token, value),)
+    return (StatReplacement(slide_number, shape_index, stat_id, key, token, value),)
 
 
 def _refresh_anchored_stat(
     shape: object,
     *,
     slide_number: int,
+    shape_index: int,
     anchor: RenderedStatAnchor,
     values: dict[tuple[str, str | None], str],
 ) -> StatReplacement:
@@ -184,7 +201,7 @@ def _refresh_anchored_stat(
     else:
         raise ValueError(_repair_message(slide_number, anchor))
     set_shape_alt_text(shape, _rendered_stat_anchor(anchor.token, value))
-    return StatReplacement(slide_number, anchor.stat_id, anchor.key, anchor.token, value)
+    return StatReplacement(slide_number, shape_index, anchor.stat_id, anchor.key, anchor.token, value)
 
 
 def _parse_rendered_stat_anchor(alt_text: str | None, *, stat_ids: tuple[str, ...]) -> RenderedStatAnchor | None:

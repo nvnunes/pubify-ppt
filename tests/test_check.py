@@ -53,6 +53,52 @@ def test_validate_presentation_reports_unknown_figure_anchor(tmp_path: Path) -> 
     assert "Slide 1: unknown figure anchor {{fig:missing}}" in errors
 
 
+def test_validate_presentation_reports_conflicting_visible_figure_anchor(tmp_path: Path) -> None:
+    init_workspace(tmp_path)
+    init_presentation_by_id(tmp_path, "demo")
+    deck_path = tmp_path / "slides" / "demo" / "deck.pptx"
+    deck = Presentation(deck_path)
+    shape = deck.slides[0].shapes.add_shape(
+        MSO_SHAPE.RECTANGLE,
+        Inches(0.5),
+        Inches(0.5),
+        Inches(1.0),
+        Inches(1.0),
+    )
+    shape.text = "{{fig:other}}"
+    _set_shape_alt_text(shape, "{{fig:example}}")
+    deck.save(deck_path)
+    presentation = load_presentation_definition(tmp_path, "demo")
+
+    errors = validate_presentation_definition(presentation)
+
+    assert (
+        "Slide 1: figure anchor alt text '{{fig:example}}' conflicts with "
+        "visible figure token '{{fig:other}}'"
+    ) in errors
+
+
+def test_validate_presentation_reports_malformed_visible_figure_anchor(tmp_path: Path) -> None:
+    init_workspace(tmp_path)
+    init_presentation_by_id(tmp_path, "demo")
+    deck_path = tmp_path / "slides" / "demo" / "deck.pptx"
+    deck = Presentation(deck_path)
+    shape = deck.slides[0].shapes.add_shape(
+        MSO_SHAPE.RECTANGLE,
+        Inches(0.5),
+        Inches(0.5),
+        Inches(1.0),
+        Inches(1.0),
+    )
+    shape.text = "{{fig:example:0}}"
+    deck.save(deck_path)
+    presentation = load_presentation_definition(tmp_path, "demo")
+
+    errors = validate_presentation_definition(presentation)
+
+    assert "Slide 1: malformed figure anchor token '{{fig:example:0}}'" in errors
+
+
 def test_check_presentation_accepts_workspace_relative_external_data_root(tmp_path: Path) -> None:
     init_workspace(tmp_path)
     init_presentation_by_id(tmp_path, "demo")

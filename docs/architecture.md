@@ -109,6 +109,11 @@ inserted pictures are centered inside the anchor box with contain-fit
 geometry. Inserted pictures keep the original `{{fig:...}}` token as alt text
 so future updates can find them.
 
+For bootstrap authoring, a supported shape whose visible text is exactly one
+`{{fig:...}}` token is treated as an anchor. The update replaces the shape with
+a picture and persists the token in alt text; after that, alt text is the
+managed anchor source.
+
 Figure updates support simple placeholder shapes and previously generated
 pictures. Unsupported anchor features, such as grouping, rotation, or cropping,
 are validation errors rather than silently changed layout.

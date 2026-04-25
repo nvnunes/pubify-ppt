@@ -163,6 +163,37 @@ def test_cli_full_update_writes_figures_and_stats(
     assert output[1] == "Slide 1: {{stat:example.count}} = 3"
 
 
+def test_cli_full_update_reports_replacements_in_slide_order(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    main(["init"])
+    main(["init", "demo"])
+    presentation_root = tmp_path / "slides" / "demo"
+    deck = Presentation()
+    first = deck.slides.add_slide(deck.slide_layouts[6])
+    first.shapes.add_textbox(Inches(0.5), Inches(0.5), Inches(6.0), Inches(0.5)).text = "{{stat:example.count}}"
+    second = deck.slides.add_slide(deck.slide_layouts[6])
+    second.shapes.add_shape(
+        1,
+        Inches(0.5),
+        Inches(0.5),
+        Inches(3),
+        Inches(2),
+    ).text = "{{fig:example}}"
+    deck.save(presentation_root / "deck.pptx")
+    capsys.readouterr()
+
+    assert main(["demo", "update"]) == 0
+
+    assert capsys.readouterr().out.splitlines() == [
+        "Slide 1: {{stat:example.count}} = 3",
+        "Slide 2: {{fig:example}} = example.png",
+    ]
+
+
 def test_cli_output_writes_generated_copy(
     tmp_path,
     monkeypatch: pytest.MonkeyPatch,

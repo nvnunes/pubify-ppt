@@ -27,6 +27,7 @@ class FigureOutput:
     """One rendered figure output and the slide it was applied to."""
 
     slide_number: int
+    shape_index: int
     token: str
     path: Path
 
@@ -96,7 +97,7 @@ def update_figures_in_deck(
                 dpi=presentation.config.defaults.dpi,
             )
             _replace_anchor_with_picture(anchor, output_path)
-            outputs.append(FigureOutput(anchor.slide_number, anchor.token, output_path))
+            outputs.append(FigureOutput(anchor.slide_number, anchor.shape_index, anchor.token, output_path))
 
     return FigureUpdateResult(active_deck, tuple(outputs))
 
