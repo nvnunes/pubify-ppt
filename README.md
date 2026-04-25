@@ -17,7 +17,6 @@ This package does not own your presentations. A host workspace does.
 - [Usage](docs/usage.md)
 - [Development setup](docs/development.md)
 - [Testing and validation](docs/testing.md)
-- [Implementation plan](docs/plan.md)
 
 ## Current Status
 
@@ -93,7 +92,7 @@ slides/<presentation-id>/
       backups/
 ```
 
-See `docs/plan.md` for the phased implementation contract.
+See `docs/architecture.md` for the stable package and workspace contracts.
 
 ## Implemented Commands
 

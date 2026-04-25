@@ -98,7 +98,7 @@ def _run_main(parser: argparse.ArgumentParser, args: argparse.Namespace) -> int:
     if args.subject is not None and args.arg2 is not None:
         return _run_presentation_command(parser, args)
 
-    parser.error("command is not implemented yet")
+    parser.error("missing command; run 'ppt --help'")
     return 2
 
 

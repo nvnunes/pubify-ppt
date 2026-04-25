@@ -4,9 +4,8 @@
 
 The package skeleton, initialization workflow, inventory commands, static
 presentation checks, figure updates, stat updates, table updates, full updates,
-generated-copy output, and in-place deck backups are in place. Use the
-implementation plan for the current sequencing and `architecture.md` for the
-stable ownership model as it is implemented.
+generated-copy output, and in-place deck backups are in place. Use
+`architecture.md` for the stable ownership model.
 
 ## Starting Points
 
@@ -16,4 +15,3 @@ stable ownership model as it is implemented.
   backups, and manual-deck migration guidance
 - `development.md`: local environment and daily commands
 - `testing.md`: canonical verification commands
-- `plan.md`: phased implementation plan

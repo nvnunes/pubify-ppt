@@ -8,7 +8,6 @@ nav:
   - Usage: usage.md
   - Development: development.md
   - Testing: testing.md
-  - Plan: plan.md
   - API Reference: api.md
 docs_dir: docs
 plugins:

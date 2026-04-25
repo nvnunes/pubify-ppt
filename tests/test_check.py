@@ -150,6 +150,22 @@ def test_validate_presentation_reports_malformed_visible_table_anchor(tmp_path: 
     assert "Slide 1: malformed table anchor token '{{table:}}'" in errors
 
 
+def test_validate_presentation_reports_malformed_table_anchor_with_figure_alt_text(tmp_path: Path) -> None:
+    init_workspace(tmp_path)
+    init_presentation_by_id(tmp_path, "demo")
+    deck_path = tmp_path / "slides" / "demo" / "deck.pptx"
+    deck = Presentation(deck_path)
+    shape = deck.slides[0].shapes.add_textbox(Inches(0.5), Inches(5.5), Inches(2.0), Inches(0.5))
+    shape.text = "{{table:}}"
+    _set_shape_alt_text(shape, "{{fig:example}}")
+    deck.save(deck_path)
+    presentation = load_presentation_definition(tmp_path, "demo")
+
+    errors = validate_presentation_definition(presentation)
+
+    assert "Slide 1: malformed table anchor token '{{table:}}'" in errors
+
+
 def test_check_presentation_accepts_workspace_relative_external_data_root(tmp_path: Path) -> None:
     init_workspace(tmp_path)
     init_presentation_by_id(tmp_path, "demo")

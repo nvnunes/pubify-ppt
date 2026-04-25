@@ -10,7 +10,7 @@ import pytest
 from pubify_ppt.anchors import shape_alt_text
 from pubify_ppt.discovery import load_presentation_definition
 from pubify_ppt.init import init_presentation_by_id, init_workspace
-from pubify_ppt.tables import update_tables, update_tables_to_output
+from pubify_ppt.tables import update_tables, update_tables_in_deck, update_tables_to_output
 
 
 def test_update_tables_converts_visible_token_to_native_table(tmp_path: Path) -> None:
@@ -128,6 +128,22 @@ def test_update_tables_requires_columns_metadata_width_to_match_data(tmp_path: P
 
     with pytest.raises(ValueError, match="has 1 columns but data has 2"):
         update_tables(presentation)
+
+
+def test_update_tables_validates_columns_metadata_before_mutating_deck(tmp_path: Path) -> None:
+    init_workspace(tmp_path)
+    init_presentation_by_id(tmp_path, "demo")
+    presentation_root = tmp_path / "slides" / "demo"
+    _write_table_module(presentation_root, [["A", 1]], columns=("name",))
+    _write_deck_with_visible_table_token(presentation_root, "{{table:summary}}")
+    presentation = load_presentation_definition(tmp_path, "demo")
+    deck = Presentation(presentation_root / "deck.pptx")
+
+    with pytest.raises(ValueError, match="has 1 columns but data has 2"):
+        update_tables_in_deck(presentation, deck=deck)
+
+    assert "{{table:summary}}" in _deck_object_text(deck)
+    assert _table_shape_count(deck) == 0
 
 
 def test_update_tables_rejects_multi_body_results(tmp_path: Path) -> None:
@@ -249,8 +265,15 @@ def _table_text(table_shape: object) -> list[list[str]]:
 
 
 def _deck_text(deck_path: Path) -> str:
-    deck = Presentation(deck_path)
+    return _deck_object_text(Presentation(deck_path))
+
+
+def _deck_object_text(deck: Presentation) -> str:
     return "\n".join(shape.text for slide in deck.slides for shape in slide.shapes if hasattr(shape, "text"))
+
+
+def _table_shape_count(deck: Presentation) -> int:
+    return sum(1 for slide in deck.slides for shape in slide.shapes if getattr(shape, "has_table", False))
 
 
 def _set_shape_alt_text(shape: object, value: str) -> None:

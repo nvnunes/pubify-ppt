@@ -211,17 +211,18 @@ def _replace_placeholder_with_table(anchor: TableAnchor, table: RenderedTable) -
     shape = anchor.shape
     slide = shape.part.slide
     left, top, width, height = shape.left, shape.top, shape.width, shape.height
+    default_columns = _default_columns(table)
     parent = shape._element.getparent()
     parent.remove(shape._element)
     table_shape = slide.shapes.add_table(table.row_count, table.column_count, left, top, width, height)
     table_shape.table.first_row = True
     table_shape.table.horz_banding = True
-    _write_all_table_cells(table_shape.table, table)
+    _write_all_table_cells(table_shape.table, table, default_columns=default_columns)
     set_shape_alt_text(table_shape, anchor.token)
 
 
-def _write_all_table_cells(native_table: object, table: RenderedTable) -> None:
-    rows = (_default_columns(table),) + table.body
+def _write_all_table_cells(native_table: object, table: RenderedTable, *, default_columns: tuple[str, ...]) -> None:
+    rows = (default_columns,) + table.body
     for row_index, row in enumerate(rows):
         for column_index, value in enumerate(row):
             native_table.cell(row_index, column_index).text = value

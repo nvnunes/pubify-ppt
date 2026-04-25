@@ -20,12 +20,12 @@ def test_cli_help_includes_planned_commands(capsys: pytest.CaptureFixture[str]) 
     assert "ppt <presentation-id> update [--output <path>]" in output
 
 
-def test_cli_entrypoint_reports_unimplemented_commands(capsys: pytest.CaptureFixture[str]) -> None:
+def test_cli_entrypoint_reports_missing_command(capsys: pytest.CaptureFixture[str]) -> None:
     with pytest.raises(SystemExit) as exc_info:
         main([])
 
     assert exc_info.value.code == 2
-    assert "command is not implemented yet" in capsys.readouterr().err
+    assert "missing command; run 'ppt --help'" in capsys.readouterr().err
 
 
 def test_cli_init_workspace_creates_pubify_yaml(
@@ -175,10 +175,11 @@ def test_cli_full_update_writes_figures_stats_and_tables(
 
     assert main(["demo", "update"]) == 0
 
-    output = capsys.readouterr().out.splitlines()
-    assert output[0] == "Slide 1: {{fig:example}} = example.png"
-    assert output[1] == "Slide 1: {{stat:example.count}} = 3"
-    assert output[2] == "Slide 1: {{table:example}} = 4 rows x 2 columns"
+    assert capsys.readouterr().out.splitlines() == [
+        "Slide 1: {{fig:example}} = example.png",
+        "Slide 1: {{stat:example.count}} = 3",
+        "Slide 1: {{table:example}} = 4 rows x 2 columns",
+    ]
 
 
 def test_cli_full_update_reports_replacements_in_slide_order(

@@ -11,7 +11,6 @@
 - Follow `docs/architecture.md` for workspace/package boundaries, supported CLI and Python API contracts, generated artifact ownership, and presentation-facing conventions that must remain stable.
 - Follow `docs/testing.md` for canonical verification commands and completion expectations.
 - Follow `docs/development.md` for local `./.conda` usage, docs workflow, and git hook activation.
-- Follow `docs/plan.md` for phased implementation sequencing until the package reaches its v1 foundation.
 
 ## Shared Guidance
 - Use `astro-agents/guidance/agent-surface.md` for shared agent-surface guidance.
@@ -22,7 +21,6 @@
 - For Python code, follow `astro-agents/authoring/code/python.md`.
 - For repo docs such as `docs/architecture.md`, `docs/testing.md`, `docs/development.md`, and similar long-lived repo documents, follow `astro-agents/authoring/writing/repo-docs.md`.
 - For `README.md`, follow `astro-agents/authoring/writing/readme-md.md` in addition to `astro-agents/authoring/writing/repo-docs.md`.
-- For plan documents or phased execution docs when they are created or revised, follow `astro-agents/authoring/writing/plan.md`.
 
 ## Working Rules
 - Use the local `./.conda` environment and the workflow in `docs/development.md` for Python commands, test runs, and docs builds unless a task explicitly requires something else.

@@ -13,6 +13,7 @@ from .figures import update_figures
 from .results import FigureResult, StatResult, TableResult
 from .runtime import check_presentation
 from .stats import update_stats
+from .tables import update_tables
 from .update import update_presentation
 
 __all__ = [
@@ -32,4 +33,5 @@ __all__ = [
     "update_figures",
     "update_presentation",
     "update_stats",
+    "update_tables",
 ]

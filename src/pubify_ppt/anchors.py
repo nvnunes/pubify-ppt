@@ -288,7 +288,7 @@ def _validate_text_shape(
                 f"{slide_number}: table anchor alt text {alt_table_token!r} conflicts with "
                 f"visible table token {visible_table_token!r}"
             )
-    elif alt_figure_token is None:
+    else:
         text = _shape_text(shape).strip()
         managed_match = MANAGED_TOKEN_RE.fullmatch(text)
         if managed_match is not None and managed_match.group(1).startswith("fig:"):
