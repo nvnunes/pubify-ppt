@@ -57,12 +57,14 @@ class PresentationConfig:
         backup_retention: Number of in-place backups to retain.
         defaults: Figure rendering defaults for deck updates.
         external_data_roots: Named roots used by ``@external_data(...)``.
+        sources: Named source publication roots.
     """
 
     deck: str = DEFAULT_DECK_FILENAME
     backup_retention: int = DEFAULT_BACKUP_RETENTION
     defaults: PresentationDefaults = field(default_factory=PresentationDefaults)
     external_data_roots: dict[str, str] = field(default_factory=dict)
+    sources: dict[str, str] = field(default_factory=dict)
 
     @property
     def deck_path(self) -> Path:
@@ -134,11 +136,23 @@ def load_presentation_config(path: Path) -> PresentationConfig:
             raise ValueError(f"{path}: external_data_roots.{root_name} must be a non-empty string")
         normalized_external_roots[root_name] = root_path
 
+    sources = raw.get("sources", {})
+    if not isinstance(sources, dict):
+        raise ValueError(f"{path}: sources must be a mapping when set")
+    normalized_sources: dict[str, str] = {}
+    for source_name, source_path in sources.items():
+        if not isinstance(source_name, str) or not source_name:
+            raise ValueError(f"{path}: sources keys must be non-empty strings")
+        if not isinstance(source_path, str) or not source_path:
+            raise ValueError(f"{path}: sources.{source_name} must be a non-empty string")
+        normalized_sources[source_name] = source_path
+
     return PresentationConfig(
         deck=deck,
         backup_retention=backup_retention,
         defaults=PresentationDefaults(image_format=image_format, dpi=dpi, fit=fit),
         external_data_roots=normalized_external_roots,
+        sources=normalized_sources,
     )
 
 
@@ -173,6 +187,7 @@ def render_default_presentation_config() -> str:
             f"  dpi: {DEFAULT_DPI}",
             f"  fit: {DEFAULT_FIT}",
             "external_data_roots:",
+            "sources:",
             "",
         ]
     )

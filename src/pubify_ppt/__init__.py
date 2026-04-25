@@ -10,6 +10,7 @@ from .config import (
 )
 from .discovery import PresentationDefinition, PresentationPaths, load_presentation_definition
 from .figures import update_figures
+from .results import FigureResult, StatResult, TableResult
 from .runtime import check_presentation
 from .stats import update_stats
 from .update import update_presentation
@@ -19,6 +20,9 @@ __all__ = [
     "PresentationDefinition",
     "PresentationDefaults",
     "PresentationPaths",
+    "FigureResult",
+    "StatResult",
+    "TableResult",
     "WorkspaceConfig",
     "check_presentation",
     "find_workspace_root",

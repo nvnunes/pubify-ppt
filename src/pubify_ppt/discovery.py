@@ -139,6 +139,7 @@ def load_presentation_definition(workspace_root: Path, presentation_id: str) -> 
         entrypoint=paths.entrypoint,
         data_root=paths.data_root,
         external_data_roots=_resolve_external_data_roots(paths.workspace_root, config.external_data_roots),
+        source_roots=_resolve_source_roots(paths.workspace_root, config.sources),
         workspace=pubify_data.WorkspaceAdapter(paths.workspace_root),
     )
     upstream = pubify_data.load_publication_from_entrypoint(presentation_id, adapter=adapter)
@@ -151,6 +152,16 @@ def load_presentation_definition(workspace_root: Path, presentation_id: str) -> 
 
 
 def _resolve_external_data_roots(workspace_root: Path, roots: dict[str, str]) -> dict[str, Path]:
+    resolved: dict[str, Path] = {}
+    for name, root in roots.items():
+        root_path = Path(root).expanduser()
+        if not root_path.is_absolute():
+            root_path = (workspace_root / root_path).resolve()
+        resolved[name] = root_path
+    return resolved
+
+
+def _resolve_source_roots(workspace_root: Path, roots: dict[str, str]) -> dict[str, Path]:
     resolved: dict[str, Path] = {}
     for name, root in roots.items():
         root_path = Path(root).expanduser()

@@ -8,7 +8,7 @@ from pptx import Presentation
 from pptx.presentation import Presentation as PresentationObject
 import pubify_data
 
-from pubify_ppt.anchors import STAT_RENDERED_TOKEN_RE, STAT_TOKEN_RE, set_shape_alt_text, shape_alt_text
+from pubify_ppt.anchors import STAT_RENDERED_TOKEN_RE, STAT_TOKEN_RE, set_shape_alt_text, shape_alt_text, split_stat_reference
 from pubify_ppt.backups import write_deck
 from pubify_ppt.discovery import PresentationDefinition
 from pubify_ppt.runtime import check_presentation
@@ -89,7 +89,7 @@ def update_stats_in_deck(
         for shape in slide.shapes:
             if getattr(shape, "text_frame", None) is None:
                 continue
-            anchor = _parse_rendered_stat_anchor(shape_alt_text(shape))
+            anchor = _parse_rendered_stat_anchor(shape_alt_text(shape), stat_ids=selected_ids)
             if anchor is not None:
                 if anchor.stat_id in selected_ids:
                     replacements.append(_refresh_anchored_stat(shape, slide_number=slide_number, anchor=anchor, values=values))
@@ -102,9 +102,10 @@ def update_stats_in_deck(
 
 
 def _selected_stat_ids(presentation: PresentationDefinition, stat_id: str | None) -> tuple[str, ...]:
+    available_ids = set(presentation.stats)
     if stat_id is None:
-        return tuple(sorted(presentation.stats))
-    if stat_id not in presentation.stats:
+        return tuple(sorted(available_ids))
+    if stat_id not in available_ids:
         raise KeyError(f"Unknown stat '{stat_id}'")
     return (stat_id,)
 
@@ -130,7 +131,8 @@ def _replace_new_stat_token(
     values: dict[tuple[str, str | None], str],
 ) -> tuple[StatReplacement, ...]:
     matches = _shape_stat_matches(shape)
-    selected = [match for match in matches if match.group(1) in selected_ids]
+    parsed = [(match, *split_stat_reference(match.group(1), stat_ids=selected_ids)) for match in matches]
+    selected = [item for item in parsed if item[1] in selected_ids]
     if not selected:
         return ()
     if len(matches) != 1:
@@ -138,9 +140,7 @@ def _replace_new_stat_token(
             f"Slide {slide_number}: stat-managed text boxes must contain exactly one stat token; "
             "split multiple stats into separate text boxes"
         )
-    match = selected[0]
-    stat_id = match.group(1)
-    key = match.group(2)
+    match, stat_id, key = selected[0]
     token = match.group(0)
     value = _stat_value(stat_id, key, values)
     _replace_shape_text_once(
@@ -187,16 +187,15 @@ def _refresh_anchored_stat(
     return StatReplacement(slide_number, anchor.stat_id, anchor.key, anchor.token, value)
 
 
-def _parse_rendered_stat_anchor(alt_text: str | None) -> RenderedStatAnchor | None:
+def _parse_rendered_stat_anchor(alt_text: str | None, *, stat_ids: tuple[str, ...]) -> RenderedStatAnchor | None:
     if not alt_text:
         return None
     match = STAT_RENDERED_TOKEN_RE.fullmatch(alt_text.strip())
     if match is None:
         return None
-    stat_id = match.group(1)
-    key = match.group(2)
+    stat_id, key = split_stat_reference(match.group(1), stat_ids=stat_ids)
     token = _stat_token(stat_id, key)
-    return RenderedStatAnchor(stat_id=stat_id, key=key, token=token, old_value=match.group(3))
+    return RenderedStatAnchor(stat_id=stat_id, key=key, token=token, old_value=match.group(2))
 
 
 def _stat_token(stat_id: str, key: str | None) -> str:

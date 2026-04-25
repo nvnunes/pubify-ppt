@@ -122,6 +122,9 @@ mutating `deck.pptx`.
   `{{fig:example}}`.
 - Multi-panel figures use one explicit anchor per panel, for example
   `{{fig:comparison:1}}`.
+- Reused paper outputs are declared in `ppt.yaml` under `sources:` and exposed
+  through presentation-local wrapper functions in `figures.py`; PowerPoint
+  anchors should reference only local IDs.
 - Stat tokens live in text boxes, for example `{{stat:example.count}}`.
 - Valid stat tokens remain supported if PowerPoint splits them across internal
   text runs.

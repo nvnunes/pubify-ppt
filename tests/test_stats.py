@@ -24,6 +24,72 @@ def test_update_stats_replaces_starter_dictionary_token(tmp_path: Path) -> None:
     assert "{{stat:example.count=3}}" in _shape_alt_texts(tmp_path / "slides" / "demo" / "deck.pptx")
 
 
+def test_update_stats_replaces_local_wrapper_around_source_publication_stat(tmp_path: Path) -> None:
+    init_workspace(tmp_path)
+    init_presentation_by_id(tmp_path, "demo")
+    source_root = tmp_path / "papers" / "ao4elt8"
+    source_data = source_root / "data"
+    source_data.mkdir(parents=True)
+    (source_data / "value.txt").write_text("source", encoding="utf-8")
+    (source_root / "figures.py").write_text(
+        "\n".join(
+            [
+                "from pubify_data import data, stat",
+                "@data('value.txt')",
+                "def load_value(ctx, path):",
+                "    return path.read_text(encoding='utf-8')",
+                "@stat",
+                "def compute_summary(ctx, value):",
+                "    return value",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    presentation_root = tmp_path / "slides" / "demo"
+    (presentation_root / "figures.py").write_text(
+        "\n".join(
+            [
+                "from pubify_data import stat",
+                "from pubify_ppt import StatResult",
+                "@stat",
+                "def compute_source_summary(ctx):",
+                "    return StatResult(ctx.source('ao4elt8').stat('summary').values[0].value)",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (presentation_root / "ppt.yaml").write_text(
+        "\n".join(
+            [
+                "deck: deck.pptx",
+                "backup_retention: 5",
+                "defaults:",
+                "  image_format: png",
+                "  dpi: 200",
+                "  fit: contain",
+                "external_data_roots:",
+                "sources:",
+                "  ao4elt8: papers/ao4elt8",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    deck = Presentation()
+    slide = deck.slides.add_slide(deck.slide_layouts[6])
+    slide.shapes.add_textbox(Inches(0.5), Inches(0.5), Inches(6.0), Inches(0.5)).text = "Value: {{stat:source_summary}}"
+    deck.save(presentation_root / "deck.pptx")
+    presentation = load_presentation_definition(tmp_path, "demo")
+
+    replacements = update_stats(presentation, stat_id="source_summary")
+
+    assert [(item.token, item.value) for item in replacements] == [("{{stat:source_summary}}", "source")]
+    assert "Value: source" in _deck_text(presentation_root / "deck.pptx")
+    assert "{{stat:source_summary=source}}" in _shape_alt_texts(presentation_root / "deck.pptx")
+
+
 def test_update_stats_can_refresh_previously_replaced_token(tmp_path: Path) -> None:
     init_workspace(tmp_path)
     init_presentation_by_id(tmp_path, "demo")

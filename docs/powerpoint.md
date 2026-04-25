@@ -33,6 +33,58 @@ Figure updates replace the anchor shape with an embedded PNG and preserve the
 same figure token in the inserted picture's alt text. Future updates use that
 picture as the next anchor.
 
+Figure anchors must reference presentation-local figure IDs defined in the
+presentation's `figures.py`. Source publication IDs are not valid PowerPoint
+anchors; expose reused source outputs through local wrapper functions instead.
+
+## Reusing Paper Outputs
+
+A presentation can reuse figures, stats, and tables from another pubify
+publication by declaring a source in `ppt.yaml`:
+
+```yaml
+sources:
+  ao4elt8: papers/ao4elt8
+```
+
+The source root uses the conventional pubify layout:
+
+```text
+papers/ao4elt8/
+  figures.py
+  data/
+```
+
+Source outputs are reused from presentation-local wrapper functions:
+
+```python
+from pubify_data import figure, stat
+from pubify_ppt import FigureResult, StatResult
+
+
+@figure
+def plot_training_fov_ee(ctx):
+    panel = ctx.source("ao4elt8").figure("training_compare_fov_ee").panel(1)
+    return FigureResult(panel)
+
+
+@stat
+def compute_training_count(ctx):
+    source_stat = ctx.source("ao4elt8").stat("training_count")
+    return StatResult(source_stat.values[0].value)
+```
+
+The PowerPoint deck then uses only the local IDs:
+
+```text
+{{fig:training_fov_ee}}
+{{stat:training_count}}
+```
+
+This keeps the editable deck independent of source publication internals such
+as paper IDs, source figure names, and panel numbering. Rename or adapt source
+outputs in `figures.py`, not in PowerPoint alt text.
+
 ## Supported Figure Anchor Shapes
 
 Supported in the current implementation:

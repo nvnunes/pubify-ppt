@@ -89,6 +89,11 @@ unknown stat ids, and split-run stat tokens.
 See `powerpoint.md` for user-facing anchor authoring rules and supported shape
 behavior.
 
+Source publications declared in `ppt.yaml` are code dependencies, not deck
+anchor namespaces. Presentation `figures.py` owns any remapping from
+`ctx.source("<source-id>")` to local figure/stat/table IDs, and the editable
+PowerPoint deck references only those local IDs.
+
 ## Figure Updates
 
 `ppt <presentation-id> figure update` renders all declared figures and replaces

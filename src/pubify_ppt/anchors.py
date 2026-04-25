@@ -11,8 +11,8 @@ from pptx.enum.shapes import MSO_SHAPE_TYPE
 
 
 FIGURE_TOKEN_RE = re.compile(r"^\{\{fig:([A-Za-z0-9_.-]+)(?::([1-9][0-9]*))?\}\}$")
-STAT_TOKEN_RE = re.compile(r"\{\{stat:([A-Za-z0-9_-]+)(?:\.([A-Za-z0-9_.-]+))?\}\}")
-STAT_RENDERED_TOKEN_RE = re.compile(r"^\{\{stat:([A-Za-z0-9_-]+)(?:\.([A-Za-z0-9_.-]+))?=(.*?)\}\}$", re.DOTALL)
+STAT_TOKEN_RE = re.compile(r"\{\{stat:([A-Za-z0-9_.-]+)\}\}")
+STAT_RENDERED_TOKEN_RE = re.compile(r"^\{\{stat:([A-Za-z0-9_.-]+)=(.*?)\}\}$", re.DOTALL)
 MANAGED_TOKEN_RE = re.compile(r"\{\{([^{}]+)\}\}")
 
 
@@ -74,7 +74,8 @@ def discover_stat_tokens(deck_path: object) -> tuple[StatToken, ...]:
             for paragraph in text_frame.paragraphs:
                 for run in paragraph.runs:
                     for match in STAT_TOKEN_RE.finditer(run.text):
-                        tokens.append(StatToken(slide_number, match.group(1), match.group(2), match.group(0)))
+                        stat_id, key = split_stat_reference(match.group(1))
+                        tokens.append(StatToken(slide_number, stat_id, key, match.group(0)))
     return tuple(tokens)
 
 
@@ -171,7 +172,8 @@ def _validate_stat_alt_text(
     if match is None:
         errors.append(f"Slide {slide_number}: malformed stat anchor token {alt_text!r}")
         return
-    if match.group(1) not in stat_ids:
+    stat_id, _ = split_stat_reference(match.group(1), stat_ids=stat_ids)
+    if stat_id not in stat_ids:
         errors.append(f"Slide {slide_number}: unknown stat anchor {alt_text}")
 
 
@@ -201,7 +203,8 @@ def _validate_text_shape(
             if stat_match is None:
                 errors.append(f"Slide {slide_number}: malformed stat token {token!r}")
                 continue
-            if stat_match.group(1) not in stat_ids:
+            stat_id, _ = split_stat_reference(stat_match.group(1), stat_ids=stat_ids)
+            if stat_id not in stat_ids:
                 errors.append(f"Slide {slide_number}: unknown stat token {token}")
 
 
@@ -222,3 +225,20 @@ def _unsupported_figure_anchor_features(shape: object) -> str | None:
         if any(value not in (0, 0.0) for value in crop_values):
             features.append("crop")
     return ", ".join(features) if features else None
+
+
+def split_stat_reference(reference: str, *, stat_ids: set[str] | tuple[str, ...] | None = None) -> tuple[str, str | None]:
+    """Split a stat token body into ``(stat_id, key)`` using known ids when available."""
+
+    if stat_ids:
+        for stat_id in sorted(stat_ids, key=len, reverse=True):
+            if reference == stat_id:
+                return stat_id, None
+            prefix = f"{stat_id}."
+            if reference.startswith(prefix):
+                key = reference[len(prefix) :]
+                return stat_id, key or None
+    if "." in reference:
+        stat_id, key = reference.split(".", 1)
+        return stat_id, key
+    return reference, None

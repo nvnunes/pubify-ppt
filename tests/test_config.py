@@ -39,6 +39,7 @@ def test_render_default_presentation_config() -> None:
         "  dpi: 200\n"
         "  fit: contain\n"
         "external_data_roots:\n"
+        "sources:\n"
     )
 
 
@@ -54,6 +55,7 @@ def test_load_presentation_config_parses_defaults(tmp_path: Path) -> None:
     assert config.defaults.dpi == 200
     assert config.defaults.fit == "contain"
     assert config.external_data_roots == {}
+    assert config.sources == {}
 
 
 def test_load_workspace_config_resolves_presentations_root(tmp_path: Path) -> None:

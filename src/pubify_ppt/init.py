@@ -147,6 +147,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from pubify_data import data, figure, stat
+from pubify_ppt import FigureResult, StatResult
 
 
 @data("example.csv")
@@ -166,10 +167,10 @@ def plot_example(ctx, example):
     ax.set_xlabel("x")
     ax.set_ylabel("y")
     ax.set_title("Starter figure")
-    return fig
+    return FigureResult(fig)
 
 
 @stat
 def compute_example(ctx, example):
-    return {"count": example["x"].size}
+    return StatResult({"count": example["x"].size})
 '''

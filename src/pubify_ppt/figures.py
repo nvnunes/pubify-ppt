@@ -72,15 +72,13 @@ def update_figures_in_deck(
 ) -> "FigureUpdateResult":
     """Render selected figures and replace anchors in an open deck."""
 
+    active_deck = deck if deck is not None else Presentation(presentation.paths.deck_path)
     check_presentation(presentation)
     ensure_generated_artifact_paths(presentation)
-    selected_ids = _selected_figure_ids(presentation, figure_id)
-    if not selected_ids:
-        active_deck = deck if deck is not None else Presentation(presentation.paths.deck_path)
-        return FigureUpdateResult(active_deck, ())
-
-    active_deck = deck if deck is not None else Presentation(presentation.paths.deck_path)
     anchors = discover_figure_anchors_in_deck(active_deck)
+    selected_ids = _selected_figure_ids(presentation, figure_id, anchors)
+    if not selected_ids:
+        return FigureUpdateResult(active_deck, ())
     rendered = _run_selected_figures(presentation, selected_ids)
     outputs: list[FigureOutput] = []
     _clear_selected_figure_pngs(presentation, selected_ids)
@@ -103,10 +101,15 @@ def update_figures_in_deck(
     return FigureUpdateResult(active_deck, tuple(outputs))
 
 
-def _selected_figure_ids(presentation: PresentationDefinition, figure_id: str | None) -> tuple[str, ...]:
+def _selected_figure_ids(
+    presentation: PresentationDefinition,
+    figure_id: str | None,
+    anchors: tuple[FigureAnchor, ...],
+) -> tuple[str, ...]:
+    available_ids = set(presentation.figures)
     if figure_id is None:
-        return tuple(sorted(presentation.figures))
-    if figure_id not in presentation.figures:
+        return tuple(sorted({anchor.figure_id for anchor in anchors if anchor.figure_id in available_ids}))
+    if figure_id not in available_ids:
         raise KeyError(f"Unknown figure '{figure_id}'")
     return (figure_id,)
 
@@ -114,9 +117,9 @@ def _selected_figure_ids(presentation: PresentationDefinition, figure_id: str | 
 def _run_selected_figures(
     presentation: PresentationDefinition,
     selected_ids: tuple[str, ...],
-) -> dict[str, pubify_data.FigureResult]:
+) -> dict[str, pubify_data.BaseFigureResult]:
     ctx = pubify_data.build_run_context(presentation.upstream)
-    rendered: dict[str, pubify_data.FigureResult] = {}
+    rendered: dict[str, pubify_data.BaseFigureResult] = {}
     for current_id in selected_ids:
         ((returned_id, result),) = pubify_data.run_figures(presentation.upstream, current_id, ctx=ctx)
         rendered[returned_id] = result
@@ -125,7 +128,7 @@ def _run_selected_figures(
 
 def _bind_anchors(
     figure_id: str,
-    figure_result: pubify_data.FigureResult,
+    figure_result: pubify_data.BaseFigureResult,
     anchors: tuple[FigureAnchor, ...],
 ) -> tuple[tuple[int, FigureAnchor], ...]:
     figure_anchors = [anchor for anchor in anchors if anchor.figure_id == figure_id]
@@ -145,14 +148,13 @@ def _bind_anchors(
     by_panel = {anchor.panel_number: anchor for anchor in figure_anchors if anchor.panel_number is not None}
     if any(anchor.panel_number is None for anchor in figure_anchors):
         raise ValueError(f"Figure '{figure_id}' returned multiple panels but has a scalar anchor")
-    for panel_index in range(1, panel_count + 1):
-        anchor = by_panel.get(panel_index)
-        if anchor is None:
-            raise ValueError(f"Figure '{figure_id}' is missing panel anchor {{fig:{figure_id}:{panel_index}}}")
-        bindings.append((panel_index, anchor))
     extra_panels = sorted(panel for panel in by_panel if panel is not None and panel > panel_count)
     if extra_panels:
         raise ValueError(f"Figure '{figure_id}' has extra panel anchors: {extra_panels}")
+    for panel_index in sorted(panel for panel in by_panel if panel is not None):
+        bindings.append((panel_index, by_panel[panel_index]))
+    if not bindings:
+        raise ValueError(f"Figure '{figure_id}' requires at least one panel anchor")
     return tuple(bindings)
 
 
