@@ -102,6 +102,110 @@ def test_update_figures_supports_targeted_multi_panel_results(tmp_path: Path) ->
     assert sorted(_shape_alt_text(shape) for shape in pictures) == ["{{fig:pair:1}}", "{{fig:pair:2}}"]
 
 
+def test_update_figures_prepares_axes_payload_without_mutating_source(tmp_path: Path) -> None:
+    init_workspace(tmp_path)
+    init_presentation_by_id(tmp_path, "demo")
+    presentation_root = tmp_path / "slides" / "demo"
+    (presentation_root / "figures.py").write_text(
+        "\n".join(
+            [
+                "import matplotlib.pyplot as plt",
+                "from pubify_data import figure",
+                "from pubify_ppt import FigureResult",
+                "@figure",
+                "def plot_axes(ctx):",
+                "    fig, axs = plt.subplots(1, 2)",
+                "    axs[0].set_xlabel('left')",
+                "    axs[1].set_xlabel('right')",
+                "    axs[0].plot([1, 2], [1, 2])",
+                "    axs[1].plot([1, 2], [2, 1])",
+                "    return FigureResult(axs[1], metadata={'hide_labels': True})",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    deck = Presentation()
+    slide = deck.slides.add_slide(deck.slide_layouts[6])
+    shape = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, Inches(0.5), Inches(0.5), Inches(3), Inches(2))
+    _set_shape_alt_text(shape, "{{fig:axes}}")
+    deck.save(presentation_root / "deck.pptx")
+    presentation = load_presentation_definition(tmp_path, "demo")
+
+    outputs = update_figures(presentation, figure_id="axes")
+
+    assert [path.name for path in outputs] == ["axes.png"]
+    assert outputs[0].is_file()
+
+
+def test_targeted_figure_update_preserves_prefix_matching_png(tmp_path: Path) -> None:
+    init_workspace(tmp_path)
+    init_presentation_by_id(tmp_path, "demo")
+    presentation_root = tmp_path / "slides" / "demo"
+    figures_root = presentation_root / "data" / "ppt-artifacts" / "figures"
+    figures_root.mkdir(parents=True, exist_ok=True)
+    (figures_root / "foo_1.png").write_text("stale panel", encoding="utf-8")
+    (figures_root / "foo_bar.png").write_text("separate figure", encoding="utf-8")
+    (presentation_root / "figures.py").write_text(
+        "\n".join(
+            [
+                "import matplotlib.pyplot as plt",
+                "from pubify_data import figure",
+                "@figure",
+                "def plot_foo(ctx):",
+                "    fig, ax = plt.subplots()",
+                "    ax.plot([1, 2], [1, 2])",
+                "    return fig",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    deck = Presentation()
+    slide = deck.slides.add_slide(deck.slide_layouts[6])
+    shape = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, Inches(0.5), Inches(0.5), Inches(3), Inches(2))
+    _set_shape_alt_text(shape, "{{fig:foo}}")
+    deck.save(presentation_root / "deck.pptx")
+    presentation = load_presentation_definition(tmp_path, "demo")
+
+    outputs = update_figures(presentation, figure_id="foo")
+
+    assert [path.name for path in outputs] == ["foo.png"]
+    assert not (figures_root / "foo_1.png").exists()
+    assert (figures_root / "foo_bar.png").read_text(encoding="utf-8") == "separate figure"
+
+
+def test_update_figures_rejects_non_integer_metadata_dpi(tmp_path: Path) -> None:
+    init_workspace(tmp_path)
+    init_presentation_by_id(tmp_path, "demo")
+    presentation_root = tmp_path / "slides" / "demo"
+    (presentation_root / "figures.py").write_text(
+        "\n".join(
+            [
+                "import matplotlib.pyplot as plt",
+                "from pubify_data import figure",
+                "from pubify_ppt import FigureResult",
+                "@figure",
+                "def plot_bad_dpi(ctx):",
+                "    fig, ax = plt.subplots()",
+                "    ax.plot([1, 2], [1, 2])",
+                "    return FigureResult(fig, metadata={'dpi': '300'})",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    deck = Presentation()
+    slide = deck.slides.add_slide(deck.slide_layouts[6])
+    shape = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, Inches(0.5), Inches(0.5), Inches(3), Inches(2))
+    _set_shape_alt_text(shape, "{{fig:bad_dpi}}")
+    deck.save(presentation_root / "deck.pptx")
+    presentation = load_presentation_definition(tmp_path, "demo")
+
+    with pytest.raises(ValueError, match="dpi must be a positive integer"):
+        update_figures(presentation, figure_id="bad_dpi")
+
+
 def test_update_figures_renders_local_wrapper_around_source_publication_figure(tmp_path: Path) -> None:
     init_workspace(tmp_path)
     init_presentation_by_id(tmp_path, "demo")

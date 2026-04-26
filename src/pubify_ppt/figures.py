@@ -2,12 +2,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+import re
 
 from PIL import Image
 from pptx import Presentation
 from pptx.presentation import Presentation as PresentationObject
 from pptx.util import Emu
 import pubify_data
+import pubify_mpl
 
 from pubify_ppt.anchors import (
     FigureAnchor,
@@ -20,6 +22,19 @@ from pubify_ppt.runtime import check_presentation, ensure_generated_artifact_pat
 
 
 EMU_PER_INCH = 914400
+FIGURE_PREPARATION_OPTIONS = {
+    "style",
+    "keep_titles",
+    "hide_labels",
+    "hide_annotations",
+    "hide_ticks",
+    "hide_tick_labels",
+    "hide_grid",
+    "hide_cbar",
+    "skip_clone",
+    "extra_rcparams",
+    "prepare_export",
+}
 
 
 @dataclass(frozen=True)
@@ -88,13 +103,16 @@ def update_figures_in_deck(
         figure_result = rendered[current_id]
         panel_bindings = _bind_anchors(current_id, figure_result, anchors)
         for panel_index, anchor in panel_bindings:
+            panel = figure_result.panels[panel_index - 1]
+            render_options = _figure_render_options(figure_result, panel)
             output_path = _figure_output_path(presentation, current_id, len(figure_result.panels), panel_index)
             _render_panel_png(
-                figure_result.panels[panel_index - 1].payload,
+                panel.payload,
                 output_path,
                 width_emu=anchor.shape.width,
                 height_emu=anchor.shape.height,
-                dpi=presentation.config.defaults.dpi,
+                dpi=render_options.pop("dpi", presentation.config.defaults.dpi),
+                preparation_options=render_options,
             )
             _replace_anchor_with_picture(anchor, output_path)
             outputs.append(FigureOutput(anchor.slide_number, anchor.shape_index, anchor.token, output_path))
@@ -165,8 +183,13 @@ def _clear_selected_figure_pngs(
 ) -> None:
     for current_id in selected_ids:
         for path in presentation.paths.figures_root.glob(f"{current_id}*.png"):
-            if path.name == f"{current_id}.png" or path.name.startswith(f"{current_id}_"):
+            if _is_figure_png_for_id(path, current_id):
                 path.unlink()
+
+
+def _is_figure_png_for_id(path: Path, figure_id: str) -> bool:
+    stem = path.stem
+    return stem == figure_id or re.fullmatch(rf"{re.escape(figure_id)}_[0-9]+", stem) is not None
 
 
 def _figure_output_path(
@@ -187,20 +210,33 @@ def _render_panel_png(
     width_emu: int,
     height_emu: int,
     dpi: int,
+    preparation_options: dict[str, object] | None = None,
 ) -> None:
-    figure = _matplotlib_figure(payload)
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    figure.set_size_inches(width_emu / EMU_PER_INCH, height_emu / EMU_PER_INCH, forward=True)
-    figure.savefig(output_path, format="png", dpi=dpi)
+    with pubify_mpl.prepare_figure(
+        payload,
+        text_usetex=False,
+        dpi=dpi,
+        **dict(preparation_options or {}),
+    ) as figure:
+        figure.set_size_inches(width_emu / EMU_PER_INCH, height_emu / EMU_PER_INCH, forward=True)
+        figure.savefig(output_path, format="png", dpi=dpi)
 
 
-def _matplotlib_figure(payload: object) -> object:
-    if hasattr(payload, "savefig") and hasattr(payload, "set_size_inches"):
-        return payload
-    figure = getattr(payload, "figure", None)
-    if figure is not None and hasattr(figure, "savefig") and hasattr(figure, "set_size_inches"):
-        return figure
-    raise ValueError("Figure panels must be Matplotlib Figure or Axes objects")
+def _figure_render_options(
+    figure_result: pubify_data.BaseFigureResult,
+    panel: pubify_data.FigurePanel,
+) -> dict[str, object]:
+    options = dict(figure_result.metadata)
+    options.update(panel.metadata)
+    unknown = sorted(set(options) - FIGURE_PREPARATION_OPTIONS - {"dpi"})
+    if unknown:
+        joined = ", ".join(unknown)
+        raise ValueError(f"Unsupported PowerPoint figure metadata option(s): {joined}")
+    dpi = options.get("dpi")
+    if dpi is not None and (isinstance(dpi, bool) or not isinstance(dpi, int) or dpi <= 0):
+        raise ValueError("PowerPoint figure metadata option dpi must be a positive integer")
+    return options
 
 
 def _replace_anchor_with_picture(anchor: FigureAnchor, image_path: Path) -> None:

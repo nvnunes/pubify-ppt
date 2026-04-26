@@ -27,6 +27,33 @@ Upstream-owned behavior:
 - neutral figure, stat, and table result models
 - artifact namespace helpers under downstream-supplied data roots
 
+## Public Surface
+
+Supported command-line entrypoint:
+
+- `ppt`
+
+Supported package-root imports:
+
+- `PresentationConfig`
+- `PresentationDefinition`
+- `PresentationDefaults`
+- `PresentationPaths`
+- `FigureResult`
+- `StatResult`
+- `TableResult`
+- `WorkspaceConfig`
+- `check_presentation`
+- `find_workspace_root`
+- `load_presentation_config`
+- `load_presentation_definition`
+- `load_workspace_config`
+- `panel`
+- `update_figures`
+- `update_presentation`
+- `update_stats`
+- `update_tables`
+
 ## Workspace Model
 
 A host workspace is rooted by `pubify.yaml`. The `pubify-ppt` section owns the

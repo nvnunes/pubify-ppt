@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pubify-ppt"
-version = "0.1.0"
+version = "1.0.0"
 description = "PowerPoint presentation workflow engine built on pubify-data"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -13,7 +13,8 @@ dependencies = [
   "matplotlib>=3.8",
   "numpy>=1.26",
   "Pillow>=10.0",
-  "pubify-data>=0.1.0",
+  "pubify-data>=1.0.0",
+  "pubify-mpl>=1.2.0",
   "python-pptx>=1.0.0",
 ]
 
@@ -27,7 +28,8 @@ dev = [
 ]
 
 [project.urls]
-Documentation = "https://github.com/nvnunes/pubify-ppt"
+Homepage = "https://github.com/nvnunes/pubify-ppt"
+Documentation = "https://nvnunes.github.io/pubify-ppt/"
 Repository = "https://github.com/nvnunes/pubify-ppt"
 Changelog = "https://github.com/nvnunes/pubify-ppt/blob/main/CHANGELOG.md"
 

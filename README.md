@@ -13,10 +13,12 @@ This package does not own your presentations. A host workspace does.
 
 ## Project Docs
 
-- [Architecture](docs/architecture.md)
-- [Usage](docs/usage.md)
-- [Development setup](docs/development.md)
-- [Testing and validation](docs/testing.md)
+- [Documentation home](https://nvnunes.github.io/pubify-ppt/)
+- [Architecture](https://nvnunes.github.io/pubify-ppt/architecture/)
+- [Usage](https://nvnunes.github.io/pubify-ppt/usage/)
+- [Development setup](https://nvnunes.github.io/pubify-ppt/development/)
+- [Testing and validation](https://nvnunes.github.io/pubify-ppt/testing/)
+- [API reference](https://nvnunes.github.io/pubify-ppt/api/)
 
 ## Current Status
 

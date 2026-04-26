@@ -139,7 +139,7 @@ def load_presentation_definition(workspace_root: Path, presentation_id: str) -> 
         entrypoint=paths.entrypoint,
         data_root=paths.data_root,
         external_data_roots=_resolve_external_data_roots(paths.workspace_root, config.external_data_roots),
-        source_roots=_resolve_source_roots(paths.workspace_root, config.sources),
+        source_adapters=_build_source_adapters(paths.workspace_root, config.sources),
         workspace=pubify_data.WorkspaceAdapter(paths.workspace_root),
     )
     upstream = pubify_data.load_publication_from_entrypoint(presentation_id, adapter=adapter)
@@ -161,11 +161,17 @@ def _resolve_external_data_roots(workspace_root: Path, roots: dict[str, str]) ->
     return resolved
 
 
-def _resolve_source_roots(workspace_root: Path, roots: dict[str, str]) -> dict[str, Path]:
-    resolved: dict[str, Path] = {}
+def _build_source_adapters(workspace_root: Path, roots: dict[str, str]) -> dict[str, pubify_data.PublicationAdapter]:
+    adapters: dict[str, pubify_data.PublicationAdapter] = {}
     for name, root in roots.items():
         root_path = Path(root).expanduser()
         if not root_path.is_absolute():
             root_path = (workspace_root / root_path).resolve()
-        resolved[name] = root_path
-    return resolved
+        adapters[name] = pubify_data.PublicationAdapter(
+            publication_id=name,
+            publication_root=root_path,
+            entrypoint=root_path / PRESENTATION_ENTRYPOINT,
+            data_root=root_path / "data",
+            workspace=pubify_data.WorkspaceAdapter(workspace_root),
+        )
+    return adapters

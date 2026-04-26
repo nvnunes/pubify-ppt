@@ -16,6 +16,8 @@ DEFAULT_BACKUP_RETENTION = 5
 DEFAULT_IMAGE_FORMAT = "png"
 DEFAULT_DPI = 200
 DEFAULT_FIT = "contain"
+PRESENTATION_CONFIG_KEYS = frozenset({"deck", "backup_retention", "defaults", "external_data_roots", "sources"})
+PRESENTATION_DEFAULTS_KEYS = frozenset({"image_format", "dpi", "fit"})
 
 
 @dataclass(frozen=True)
@@ -101,6 +103,7 @@ def load_presentation_config(path: Path) -> PresentationConfig:
     """Load and validate one presentation-local ``ppt.yaml`` file."""
 
     raw = parse_simple_yaml(path.read_text(encoding="utf-8"))
+    _reject_unknown_mapping_keys(raw, PRESENTATION_CONFIG_KEYS, path, "ppt.yaml")
     deck = raw.get("deck", DEFAULT_DECK_FILENAME)
     if not isinstance(deck, str) or not deck:
         raise ValueError(f"{path}: deck must be a non-empty string")
@@ -109,17 +112,18 @@ def load_presentation_config(path: Path) -> PresentationConfig:
         raise ValueError(f"{path}: deck must be a presentation-local relative path")
 
     backup_retention = raw.get("backup_retention", DEFAULT_BACKUP_RETENTION)
-    if not isinstance(backup_retention, int) or backup_retention < 0:
+    if isinstance(backup_retention, bool) or not isinstance(backup_retention, int) or backup_retention < 0:
         raise ValueError(f"{path}: backup_retention must be a non-negative integer")
 
     defaults_raw = raw.get("defaults", {})
     if not isinstance(defaults_raw, dict):
         raise ValueError(f"{path}: defaults must be a mapping when set")
+    _reject_unknown_mapping_keys(defaults_raw, PRESENTATION_DEFAULTS_KEYS, path, "ppt.yaml defaults")
     image_format = defaults_raw.get("image_format", DEFAULT_IMAGE_FORMAT)
     if image_format != DEFAULT_IMAGE_FORMAT:
         raise ValueError(f"{path}: defaults.image_format must be png")
     dpi = defaults_raw.get("dpi", DEFAULT_DPI)
-    if not isinstance(dpi, int) or dpi <= 0:
+    if isinstance(dpi, bool) or not isinstance(dpi, int) or dpi <= 0:
         raise ValueError(f"{path}: defaults.dpi must be a positive integer")
     fit = defaults_raw.get("fit", DEFAULT_FIT)
     if fit != DEFAULT_FIT:
@@ -154,6 +158,18 @@ def load_presentation_config(path: Path) -> PresentationConfig:
         external_data_roots=normalized_external_roots,
         sources=normalized_sources,
     )
+
+
+def _reject_unknown_mapping_keys(
+    raw: dict[str, object],
+    allowed_keys: frozenset[str],
+    path: Path,
+    label: str,
+) -> None:
+    unknown = sorted(set(raw) - allowed_keys)
+    if unknown:
+        joined = ", ".join(unknown)
+        raise ValueError(f"{path}: unknown {label} key(s): {joined}")
 
 
 def render_default_workspace_config() -> str:

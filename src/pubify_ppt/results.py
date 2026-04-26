@@ -24,3 +24,9 @@ class StatResult(pubify_data.BaseStatResult):
 
 class TableResult(pubify_data.BaseTableResult):
     """PowerPoint table result with slide-facing metadata reserved for pubify-ppt."""
+
+
+def panel(payload: object, **metadata: object) -> pubify_data.FigurePanel:
+    """Wrap one PowerPoint figure panel with slide-facing render metadata."""
+
+    return pubify_data.panel(payload, **metadata)

@@ -58,6 +58,49 @@ def test_load_presentation_config_parses_defaults(tmp_path: Path) -> None:
     assert config.sources == {}
 
 
+def test_load_presentation_config_rejects_unknown_top_level_keys(tmp_path: Path) -> None:
+    config_path = tmp_path / "ppt.yaml"
+    config_path.write_text(
+        "deck: deck.pptx\n"
+        "backup_retensions: 5\n"
+        "defaults:\n"
+        "  image_format: png\n"
+        "  dpi: 200\n"
+        "  fit: contain\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match=r"unknown ppt\.yaml key\(s\): backup_retensions"):
+        load_presentation_config(config_path)
+
+
+def test_load_presentation_config_rejects_unknown_defaults_keys(tmp_path: Path) -> None:
+    config_path = tmp_path / "ppt.yaml"
+    config_path.write_text(
+        "deck: deck.pptx\n"
+        "defaults:\n"
+        "  image_format: png\n"
+        "  dp: 200\n"
+        "  fit: contain\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match=r"unknown ppt\.yaml defaults key\(s\): dp"):
+        load_presentation_config(config_path)
+
+
+def test_load_presentation_config_rejects_bool_numeric_fields(tmp_path: Path) -> None:
+    config_path = tmp_path / "ppt.yaml"
+    config_path.write_text(
+        "deck: deck.pptx\n"
+        "backup_retention: true\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="backup_retention must be a non-negative integer"):
+        load_presentation_config(config_path)
+
+
 def test_load_workspace_config_resolves_presentations_root(tmp_path: Path) -> None:
     (tmp_path / "pubify.yaml").write_text(
         "pubify-ppt:\n  presentations_root: slides\n",
