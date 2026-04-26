@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from importlib import resources
 from pathlib import Path
 
 from pptx import Presentation
@@ -22,6 +23,7 @@ PPT_ARTIFACTS_NAMESPACE = "ppt-artifacts"
 FIGURES_ARTIFACT_DIR = "figures"
 BACKUPS_ARTIFACT_DIR = "backups"
 PRESENTATION_ENTRYPOINT = "figures.py"
+PRESENTATIONS_AGENTS_FILENAME = "AGENTS.md"
 STARTER_DATA_FILENAME = "example.csv"
 STARTER_FIGURE_TOKEN = "{{fig:example}}"
 STARTER_STAT_TOKEN = "{{stat:example.count}}"
@@ -40,6 +42,10 @@ def init_workspace(workspace_root: Path) -> Path:
 
     workspace = load_workspace_config(root)
     workspace.presentations_root.mkdir(parents=True, exist_ok=True)
+    _write_if_missing(
+        workspace.presentations_root / PRESENTATIONS_AGENTS_FILENAME,
+        write_presentations_agents_file,
+    )
     return root
 
 
@@ -50,6 +56,10 @@ def init_presentation_by_id(workspace_root: Path, presentation_id: str) -> Path:
         raise ValueError("presentation id must be a single non-empty path segment")
 
     workspace = load_workspace_config(workspace_root)
+    _write_if_missing(
+        workspace.presentations_root / PRESENTATIONS_AGENTS_FILENAME,
+        write_presentations_agents_file,
+    )
     presentation_root = workspace.presentations_root / presentation_id
     data_root = presentation_root / "data"
     artifacts_root = data_root / PPT_ARTIFACTS_NAMESPACE
@@ -71,6 +81,13 @@ def write_starter_figures_module(path: Path) -> None:
 
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(_render_starter_figures_module(), encoding="utf-8")
+
+
+def write_presentations_agents_file(path: Path) -> None:
+    """Write the shared presentations-root ``AGENTS.md`` scaffold for ``ppt init``."""
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(_load_init_asset_text("AGENTS.example.md"), encoding="utf-8")
 
 
 def write_starter_deck(path: Path) -> None:
@@ -149,6 +166,10 @@ def _write_text_if_missing(path: Path, text: str) -> None:
 def _set_shape_alt_text(shape: object, value: str) -> None:
     c_nv_pr = shape._element.xpath(".//p:cNvPr")[0]
     c_nv_pr.set("descr", value)
+
+
+def _load_init_asset_text(filename: str) -> str:
+    return resources.files("pubify_ppt.assets.init").joinpath(filename).read_text(encoding="utf-8")
 
 
 def _render_starter_figures_module() -> str:

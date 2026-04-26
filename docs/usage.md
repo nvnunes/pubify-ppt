@@ -11,6 +11,10 @@ Create or update workspace config from the host workspace root:
 ppt init
 ```
 
+This also creates a shared presentations-root `AGENTS.md`, usually
+`slides/AGENTS.md`, with guidance for agents working in downstream presentation
+workspaces.
+
 Create a starter presentation:
 
 ```bash

@@ -25,8 +25,8 @@ This package does not own your presentations. A host workspace does.
 The package skeleton, initialization workflow, inventory commands, static
 presentation checks, figure updates, stat updates, table updates, full updates,
 generated-copy output, and in-place deck backups are in place. `ppt init`
-creates or updates
-workspace config, and `ppt init <presentation-id>` creates a starter
+creates or updates workspace config and a shared presentations-root
+`AGENTS.md`, and `ppt init <presentation-id>` creates a starter
 presentation scaffold with `ppt.yaml`, `figures.py`, `deck.pptx`, and
 `data/ppt-artifacts/`.
 
@@ -81,9 +81,14 @@ pubify-ppt:
   presentations_root: slides
 ```
 
+`ppt init` also creates a minimal shared `AGENTS.md` under the configured
+`presentations_root`, which is `slides/AGENTS.md` by default.
+
 Each presentation lives under `slides/<presentation-id>/` and uses:
 
 ```text
+slides/
+  AGENTS.md
 slides/<presentation-id>/
   figures.py
   ppt.yaml

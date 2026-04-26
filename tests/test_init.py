@@ -24,6 +24,9 @@ def test_init_workspace_appends_pubify_ppt_section_to_existing_config(tmp_path: 
         "  presentations_root: slides\n"
     )
     assert (tmp_path / "slides").is_dir()
+    assert (tmp_path / "slides" / "AGENTS.md").read_text(encoding="utf-8").startswith(
+        "# AGENTS.md\n"
+    )
 
 
 def test_init_workspace_does_not_duplicate_existing_section(tmp_path: Path) -> None:
@@ -40,6 +43,18 @@ def test_init_workspace_does_not_duplicate_existing_section(tmp_path: Path) -> N
         "  presentations_root: decks\n"
     )
     assert (tmp_path / "decks").is_dir()
+    assert (tmp_path / "decks" / "AGENTS.md").is_file()
+
+
+def test_init_workspace_does_not_overwrite_existing_presentations_agents_file(tmp_path: Path) -> None:
+    presentations_root = tmp_path / "slides"
+    presentations_root.mkdir()
+    agents_path = presentations_root / "AGENTS.md"
+    agents_path.write_text("# custom\n", encoding="utf-8")
+
+    init_workspace(tmp_path)
+
+    assert agents_path.read_text(encoding="utf-8") == "# custom\n"
 
 
 def test_init_presentation_creates_starter_files_and_deck_anchors(tmp_path: Path) -> None:
@@ -63,6 +78,16 @@ def test_init_presentation_creates_starter_files_and_deck_anchors(tmp_path: Path
     assert "{{fig:example}}" in descriptions
     assert "{{stat:example.count}}" in text
     assert "{{table:example}}" in text
+
+
+def test_init_presentation_backfills_presentations_agents_file(tmp_path: Path) -> None:
+    init_workspace(tmp_path)
+    agents_path = tmp_path / "slides" / "AGENTS.md"
+    agents_path.unlink()
+
+    init_presentation_by_id(tmp_path, "demo")
+
+    assert agents_path.read_text(encoding="utf-8").startswith("# AGENTS.md\n")
 
 
 def test_init_presentation_preserves_existing_user_files(tmp_path: Path) -> None:
