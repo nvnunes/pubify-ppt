@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+from xml.etree import ElementTree
+from zipfile import ZipFile
+
 import pytest
 from pptx import Presentation
 from pptx.util import Inches
 
 from pubify_ppt.cli import build_parser, main
-
 
 def test_cli_help_includes_planned_commands(capsys: pytest.CaptureFixture[str]) -> None:
     parser = build_parser()
@@ -132,6 +134,33 @@ def test_cli_figure_update_writes_png_and_deck(
 
     assert capsys.readouterr().out.strip() == "Slide 1: {{fig:example}} = example.png"
     assert (tmp_path / "slides" / "demo" / "data" / "ppt-artifacts" / "figures" / "example.png").is_file()
+
+
+def test_cli_figure_update_warns_once_for_unavailable_theme_font(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    main(["init"])
+    main(["init", "demo"])
+    presentation_root = tmp_path / "slides" / "demo"
+    _replace_theme_body_font(presentation_root / "deck.pptx", "Missing Theme Font")
+
+    def fake_findfont(*args: object, **kwargs: object) -> str:
+        raise ValueError("missing font")
+
+    monkeypatch.setattr("pubify_ppt.figures.font_manager.findfont", fake_findfont)
+    capsys.readouterr()
+
+    assert main(["demo", "figure", "update"]) == 0
+
+    captured = capsys.readouterr()
+    assert captured.out.strip() == "Slide 1: {{fig:example}} = example.png"
+    assert captured.err.splitlines() == [
+        "Warning: PowerPoint theme figure font 'Missing Theme Font' was not found by Matplotlib; "
+        "using Matplotlib's fallback font."
+    ]
 
 
 def test_cli_stat_update_writes_deck(
@@ -277,3 +306,18 @@ def test_cli_labels_repeated_replacements_with_occurrence_index(
         "Slide 1: {{stat:example.count}} [1/2] = 3",
         "Slide 1: {{stat:example.count}} [2/2] = 3",
     ]
+
+
+def _replace_theme_body_font(deck_path, font_family: str) -> None:
+    drawing_namespace = "{http://schemas.openxmlformats.org/drawingml/2006/main}"
+    with ZipFile(deck_path) as package:
+        entries = {name: package.read(name) for name in package.namelist()}
+    theme_name = next(name for name in sorted(entries) if name.startswith("ppt/theme/theme") and name.endswith(".xml"))
+    root = ElementTree.fromstring(entries[theme_name])
+    latin = root.find(f".//{drawing_namespace}minorFont/{drawing_namespace}latin")
+    assert latin is not None
+    latin.set("typeface", font_family)
+    entries[theme_name] = ElementTree.tostring(root, encoding="utf-8", xml_declaration=True)
+    with ZipFile(deck_path, "w") as package:
+        for name, payload in entries.items():
+            package.writestr(name, payload)

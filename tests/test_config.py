@@ -35,9 +35,7 @@ def test_render_default_presentation_config() -> None:
         "deck: deck.pptx\n"
         "backup_retention: 5\n"
         "defaults:\n"
-        "  image_format: png\n"
         "  dpi: 200\n"
-        "  fit: contain\n"
         "external_data_roots:\n"
         "sources:\n"
     )
@@ -51,11 +49,93 @@ def test_load_presentation_config_parses_defaults(tmp_path: Path) -> None:
 
     assert config.deck == "deck.pptx"
     assert config.backup_retention == 5
-    assert config.defaults.image_format == "png"
     assert config.defaults.dpi == 200
-    assert config.defaults.fit == "contain"
+    assert config.defaults.figure_font_family is None
+    assert config.defaults.figure_style == {}
     assert config.external_data_roots == {}
     assert config.sources == {}
+
+
+def test_load_presentation_config_accepts_legacy_image_format_and_fit_defaults(tmp_path: Path) -> None:
+    config_path = tmp_path / "ppt.yaml"
+    config_path.write_text(
+        "deck: deck.pptx\n"
+        "defaults:\n"
+        "  image_format: png\n"
+        "  fit: contain\n",
+        encoding="utf-8",
+    )
+
+    config = load_presentation_config(config_path)
+
+    assert config.defaults.dpi == 200
+
+
+def test_load_presentation_config_parses_figure_font_family_default(tmp_path: Path) -> None:
+    config_path = tmp_path / "ppt.yaml"
+    config_path.write_text(
+        "deck: deck.pptx\n"
+        "defaults:\n"
+        "  dpi: 200\n"
+        "  figure_font_family: Aptos\n",
+        encoding="utf-8",
+    )
+
+    config = load_presentation_config(config_path)
+
+    assert config.defaults.figure_font_family == "Aptos"
+
+
+def test_load_presentation_config_parses_figure_font_size_defaults(tmp_path: Path) -> None:
+    config_path = tmp_path / "ppt.yaml"
+    config_path.write_text(
+        "deck: deck.pptx\n"
+        "defaults:\n"
+        "  figure_base_fontsize_pt: 11\n"
+        "  figure_axes_labelsize_pt: 11\n"
+        "  figure_tick_labelsize_pt: 10\n"
+        "  figure_legend_fontsize_pt: 10\n"
+        "  figure_title_fontsize_pt: 12\n",
+        encoding="utf-8",
+    )
+
+    config = load_presentation_config(config_path)
+
+    assert config.defaults.figure_style == {
+        "base_fontsize_pt": 11.0,
+        "axes_labelsize_pt": 11.0,
+        "tick_labelsize_pt": 10.0,
+        "legend_fontsize_pt": 10.0,
+        "title_fontsize_pt": 12.0,
+    }
+
+
+@pytest.mark.parametrize("value", ["0", "-1", "true", "large"])
+def test_load_presentation_config_rejects_invalid_figure_font_size_defaults(tmp_path: Path, value: str) -> None:
+    config_path = tmp_path / "ppt.yaml"
+    config_path.write_text(
+        "deck: deck.pptx\n"
+        "defaults:\n"
+        f"  figure_base_fontsize_pt: {value}\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="defaults.figure_base_fontsize_pt must be a positive number"):
+        load_presentation_config(config_path)
+
+
+@pytest.mark.parametrize("value", ["", "  "])
+def test_load_presentation_config_rejects_empty_figure_font_family(tmp_path: Path, value: str) -> None:
+    config_path = tmp_path / "ppt.yaml"
+    config_path.write_text(
+        "deck: deck.pptx\n"
+        "defaults:\n"
+        f"  figure_font_family: {value}\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="defaults.figure_font_family must be a non-empty string"):
+        load_presentation_config(config_path)
 
 
 def test_load_presentation_config_rejects_unknown_top_level_keys(tmp_path: Path) -> None:
@@ -64,9 +144,7 @@ def test_load_presentation_config_rejects_unknown_top_level_keys(tmp_path: Path)
         "deck: deck.pptx\n"
         "backup_retensions: 5\n"
         "defaults:\n"
-        "  image_format: png\n"
-        "  dpi: 200\n"
-        "  fit: contain\n",
+        "  dpi: 200\n",
         encoding="utf-8",
     )
 
@@ -79,9 +157,7 @@ def test_load_presentation_config_rejects_unknown_defaults_keys(tmp_path: Path) 
     config_path.write_text(
         "deck: deck.pptx\n"
         "defaults:\n"
-        "  image_format: png\n"
-        "  dp: 200\n"
-        "  fit: contain\n",
+        "  dp: 200\n",
         encoding="utf-8",
     )
 

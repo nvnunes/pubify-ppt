@@ -88,9 +88,7 @@ def test_backup_retention_prunes_old_backups(tmp_path: Path) -> None:
                 "deck: deck.pptx",
                 "backup_retention: 2",
                 "defaults:",
-                "  image_format: png",
                 "  dpi: 200",
-                "  fit: contain",
                 "external_data_roots:",
             ]
         )

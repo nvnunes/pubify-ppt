@@ -6,7 +6,11 @@ import math
 from numbers import Real
 from pathlib import Path
 import re
+import sys
+from xml.etree import ElementTree
+from zipfile import ZipFile
 
+from matplotlib import font_manager
 from matplotlib.transforms import Bbox
 from PIL import Image
 from pptx import Presentation
@@ -149,6 +153,7 @@ def update_figures_in_deck(
     if not selected_ids:
         return FigureUpdateResult(active_deck, (), (), ())
     rendered = _run_selected_figures(presentation, selected_ids)
+    font_family = _resolved_figure_font_family(presentation)
     bindings: list[tuple[str, pubify_data.BaseFigureResult, int, FigureAnchor]] = []
     for current_id in selected_ids:
         figure_result = rendered[current_id]
@@ -165,7 +170,7 @@ def update_figures_in_deck(
 
     for current_id, figure_result, panel_index, anchor in bindings:
         panel = figure_result.panels[panel_index - 1]
-        render_options = _figure_render_options(figure_result, panel)
+        render_options = _figure_render_options(presentation, figure_result, panel)
         output_path = _figure_output_path(presentation, current_id, len(figure_result.panels), panel_index)
         _render_panel_png(
             panel.payload,
@@ -173,6 +178,7 @@ def update_figures_in_deck(
             width_emu=anchor.shape.width,
             height_emu=anchor.shape.height,
             dpi=render_options.pop("dpi", presentation.config.defaults.dpi),
+            font_family=font_family,
             preparation_options=render_options,
         )
         anchor_update = _replace_anchor_with_picture(
@@ -323,6 +329,7 @@ def _render_panel_png(
     width_emu: int,
     height_emu: int,
     dpi: int,
+    font_family: str | None,
     preparation_options: dict[str, object] | None = None,
 ) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -335,6 +342,7 @@ def _render_panel_png(
             width=width_emu / EMU_PER_INCH,
             height=height_emu / EMU_PER_INCH,
             dpi=dpi,
+            font_family=font_family,
             padding=padding,
             render_options=render_options,
         )
@@ -348,6 +356,7 @@ def _render_panel_png(
         **render_options,
         dpi=dpi,
         text_usetex=False,
+        font_family=font_family,
         bbox_inches="tight",
         pad_inches=padding.symmetric,
     )
@@ -360,6 +369,7 @@ def _save_fig_with_asymmetric_tight_padding(
     width: float,
     height: float,
     dpi: int,
+    font_family: str | None,
     padding: _ExportPadding,
     render_options: dict[str, object],
 ) -> None:
@@ -368,6 +378,7 @@ def _save_fig_with_asymmetric_tight_padding(
         **render_options,
         dpi=dpi,
         text_usetex=False,
+        font_family=font_family,
     ) as fig_export:
         fig_export.set_size_inches(width, height, forward=True)
         expanded_bbox = _asymmetric_tight_bbox(fig_export, padding)
@@ -390,12 +401,59 @@ def _asymmetric_tight_bbox(figure: object, padding: _ExportPadding) -> Bbox:
     )
 
 
+def _resolved_figure_font_family(presentation: PresentationDefinition) -> str | None:
+    configured = presentation.config.defaults.figure_font_family
+    if configured is not None:
+        return _available_matplotlib_font_family(configured, source="configured")
+    return _available_matplotlib_font_family(
+        _theme_body_font_family(presentation.paths.deck_path),
+        source="PowerPoint theme",
+    )
+
+
+def _available_matplotlib_font_family(font_family: str | None, *, source: str) -> str | None:
+    if font_family is None:
+        return None
+    try:
+        font_manager.findfont(
+            font_manager.FontProperties(family=[font_family]),
+            fallback_to_default=False,
+        )
+    except ValueError:
+        print(
+            f"Warning: {source} figure font '{font_family}' was not found by Matplotlib; "
+            "using Matplotlib's fallback font.",
+            file=sys.stderr,
+        )
+        return None
+    return font_family
+
+
+def _theme_body_font_family(deck_path: Path) -> str | None:
+    namespace = {"a": "http://schemas.openxmlformats.org/drawingml/2006/main"}
+    with ZipFile(deck_path) as package:
+        theme_names = sorted(
+            name
+            for name in package.namelist()
+            if name.startswith("ppt/theme/theme") and name.endswith(".xml")
+        )
+        for name in theme_names:
+            root = ElementTree.fromstring(package.read(name))
+            latin = root.find(".//a:minorFont/a:latin", namespace)
+            if latin is None:
+                continue
+            typeface = latin.attrib.get("typeface", "").strip()
+            if typeface:
+                return typeface
+    return None
+
+
 def _figure_render_options(
+    presentation: PresentationDefinition,
     figure_result: pubify_data.BaseFigureResult,
     panel: pubify_data.FigurePanel,
 ) -> dict[str, object]:
-    options = dict(figure_result.metadata)
-    options.update(panel.metadata)
+    options = _merge_figure_metadata(presentation, figure_result, panel)
     unknown = sorted(set(options) - FIGURE_PREPARATION_OPTIONS - {"dpi"})
     if unknown:
         joined = ", ".join(unknown)
@@ -404,6 +462,24 @@ def _figure_render_options(
     if dpi is not None and (isinstance(dpi, bool) or not isinstance(dpi, int) or dpi <= 0):
         raise ValueError("PowerPoint figure metadata option dpi must be a positive integer")
     _validate_export_padding_options(options)
+    return options
+
+
+def _merge_figure_metadata(
+    presentation: PresentationDefinition,
+    figure_result: pubify_data.BaseFigureResult,
+    panel: pubify_data.FigurePanel,
+) -> dict[str, object]:
+    options = dict(figure_result.metadata)
+    options.update(panel.metadata)
+    if not presentation.config.defaults.figure_style:
+        return options
+    merged_style = dict(presentation.config.defaults.figure_style)
+    for metadata in (figure_result.metadata, panel.metadata):
+        style = metadata.get("style")
+        if style is not None:
+            merged_style.update(style)
+    options["style"] = merged_style
     return options
 
 

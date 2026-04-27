@@ -13,11 +13,20 @@ DEFAULT_PRESENTATIONS_ROOT = "slides"
 PRESENTATION_CONFIG_FILENAME = "ppt.yaml"
 DEFAULT_DECK_FILENAME = "deck.pptx"
 DEFAULT_BACKUP_RETENTION = 5
-DEFAULT_IMAGE_FORMAT = "png"
 DEFAULT_DPI = 200
-DEFAULT_FIT = "contain"
+LEGACY_IMAGE_FORMAT = "png"
+LEGACY_FIT = "contain"
+FIGURE_FONT_SIZE_DEFAULT_KEYS = frozenset(
+    {
+        "figure_base_fontsize_pt",
+        "figure_axes_labelsize_pt",
+        "figure_tick_labelsize_pt",
+        "figure_legend_fontsize_pt",
+        "figure_title_fontsize_pt",
+    }
+)
 PRESENTATION_CONFIG_KEYS = frozenset({"deck", "backup_retention", "defaults", "external_data_roots", "sources"})
-PRESENTATION_DEFAULTS_KEYS = frozenset({"image_format", "dpi", "fit"})
+PRESENTATION_DEFAULTS_KEYS = frozenset({"image_format", "dpi", "fit", "figure_font_family"}) | FIGURE_FONT_SIZE_DEFAULT_KEYS
 
 
 @dataclass(frozen=True)
@@ -39,15 +48,15 @@ class PresentationDefaults:
     """Presentation-local defaults loaded from ``ppt.yaml``.
 
     Attributes:
-        image_format: Generated figure image format. V1 supports ``png``.
         dpi: DPI-equivalent figure render scale at the current anchor size.
-        fit: Image placement mode inside the anchor box. V1 supports
-            ``contain``.
+        figure_font_family: Optional Matplotlib figure font override.
+        figure_style: Presentation-level Matplotlib style overrides for
+            generated figures.
     """
 
-    image_format: str = DEFAULT_IMAGE_FORMAT
     dpi: int = DEFAULT_DPI
-    fit: str = DEFAULT_FIT
+    figure_font_family: str | None = None
+    figure_style: dict[str, float] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -119,15 +128,21 @@ def load_presentation_config(path: Path) -> PresentationConfig:
     if not isinstance(defaults_raw, dict):
         raise ValueError(f"{path}: defaults must be a mapping when set")
     _reject_unknown_mapping_keys(defaults_raw, PRESENTATION_DEFAULTS_KEYS, path, "ppt.yaml defaults")
-    image_format = defaults_raw.get("image_format", DEFAULT_IMAGE_FORMAT)
-    if image_format != DEFAULT_IMAGE_FORMAT:
+    image_format = defaults_raw.get("image_format", LEGACY_IMAGE_FORMAT)
+    if image_format != LEGACY_IMAGE_FORMAT:
         raise ValueError(f"{path}: defaults.image_format must be png")
     dpi = defaults_raw.get("dpi", DEFAULT_DPI)
     if isinstance(dpi, bool) or not isinstance(dpi, int) or dpi <= 0:
         raise ValueError(f"{path}: defaults.dpi must be a positive integer")
-    fit = defaults_raw.get("fit", DEFAULT_FIT)
-    if fit != DEFAULT_FIT:
+    fit = defaults_raw.get("fit", LEGACY_FIT)
+    if fit != LEGACY_FIT:
         raise ValueError(f"{path}: defaults.fit must be contain")
+    figure_font_family = defaults_raw.get("figure_font_family")
+    if figure_font_family is not None and (
+        not isinstance(figure_font_family, str) or not figure_font_family.strip()
+    ):
+        raise ValueError(f"{path}: defaults.figure_font_family must be a non-empty string")
+    figure_style = _load_figure_style_defaults(defaults_raw, path)
 
     external_data_roots = raw.get("external_data_roots", {})
     if not isinstance(external_data_roots, dict):
@@ -154,7 +169,11 @@ def load_presentation_config(path: Path) -> PresentationConfig:
     return PresentationConfig(
         deck=deck,
         backup_retention=backup_retention,
-        defaults=PresentationDefaults(image_format=image_format, dpi=dpi, fit=fit),
+        defaults=PresentationDefaults(
+            dpi=dpi,
+            figure_font_family=figure_font_family.strip() if figure_font_family is not None else None,
+            figure_style=figure_style,
+        ),
         external_data_roots=normalized_external_roots,
         sources=normalized_sources,
     )
@@ -170,6 +189,25 @@ def _reject_unknown_mapping_keys(
     if unknown:
         joined = ", ".join(unknown)
         raise ValueError(f"{path}: unknown {label} key(s): {joined}")
+
+
+def _load_figure_style_defaults(defaults_raw: dict[str, object], path: Path) -> dict[str, float]:
+    figure_style: dict[str, float] = {}
+    mapping = {
+        "figure_base_fontsize_pt": "base_fontsize_pt",
+        "figure_axes_labelsize_pt": "axes_labelsize_pt",
+        "figure_tick_labelsize_pt": "tick_labelsize_pt",
+        "figure_legend_fontsize_pt": "legend_fontsize_pt",
+        "figure_title_fontsize_pt": "title_fontsize_pt",
+    }
+    for config_key, style_key in mapping.items():
+        if config_key not in defaults_raw:
+            continue
+        value = defaults_raw[config_key]
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or value <= 0:
+            raise ValueError(f"{path}: defaults.{config_key} must be a positive number")
+        figure_style[style_key] = float(value)
+    return figure_style
 
 
 def render_default_workspace_config() -> str:
@@ -199,9 +237,7 @@ def render_default_presentation_config() -> str:
             f"deck: {DEFAULT_DECK_FILENAME}",
             f"backup_retention: {DEFAULT_BACKUP_RETENTION}",
             "defaults:",
-            f"  image_format: {DEFAULT_IMAGE_FORMAT}",
             f"  dpi: {DEFAULT_DPI}",
-            f"  fit: {DEFAULT_FIT}",
             "external_data_roots:",
             "sources:",
             "",

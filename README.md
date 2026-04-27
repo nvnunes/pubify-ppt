@@ -137,6 +137,11 @@ mutating `deck.pptx`.
   `export_pad_top_inches`, and `export_pad_bottom_inches`. Side-specific
   padding expands Matplotlib's tight export bounding box before rendering, which
   helps keep labels and spines away from PowerPoint image boundaries.
+- Figure text uses the PowerPoint theme body font by default. Set
+  `defaults.figure_font_family` in `ppt.yaml` to override the discovered theme
+  font for generated figures; unavailable fonts are ignored to avoid Matplotlib
+  `findfont` noise. Set `defaults.figure_*_fontsize_pt` values to control
+  presentation-level generated figure text sizes.
 - Multi-panel figures use one explicit anchor per panel, for example
   `{{fig:comparison:1}}`.
 - Reused paper outputs are declared in `ppt.yaml` under `sources:` and exposed

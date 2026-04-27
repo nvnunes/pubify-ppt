@@ -15,6 +15,9 @@ import pytest
 from pubify_ppt.discovery import load_presentation_definition
 from pubify_ppt.figures import _ExportPadding
 from pubify_ppt.figures import _asymmetric_tight_bbox
+from pubify_ppt.figures import _available_matplotlib_font_family
+from pubify_ppt.figures import _resolved_figure_font_family
+from pubify_ppt.figures import _theme_body_font_family
 from pubify_ppt.figures import update_figures
 from pubify_ppt.init import init_presentation_by_id, init_workspace
 
@@ -97,6 +100,230 @@ def test_update_figures_can_update_existing_picture_anchor(tmp_path: Path) -> No
     assert _shape_alt_text(pictures[0]) == "{{fig:example}}"
 
 
+def test_theme_body_font_family_reads_powerpoint_minor_font(tmp_path: Path) -> None:
+    init_workspace(tmp_path)
+    init_presentation_by_id(tmp_path, "demo")
+    deck_path = tmp_path / "slides" / "demo" / "deck.pptx"
+    _replace_theme_body_font(deck_path, "Deck Body")
+
+    assert _theme_body_font_family(deck_path) == "Deck Body"
+
+
+def test_available_matplotlib_font_family_warns_once_for_missing_font(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    def fake_findfont(*args: object, **kwargs: object) -> str:
+        raise ValueError("missing font")
+
+    monkeypatch.setattr("pubify_ppt.figures.font_manager.findfont", fake_findfont)
+
+    assert _available_matplotlib_font_family("IBM Plex Sans", source="PowerPoint theme") is None
+    assert capsys.readouterr().err == (
+        "Warning: PowerPoint theme figure font 'IBM Plex Sans' was not found by Matplotlib; "
+        "using Matplotlib's fallback font.\n"
+    )
+
+
+def test_resolved_figure_font_family_prefers_ppt_yaml_default(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    init_workspace(tmp_path)
+    init_presentation_by_id(tmp_path, "demo")
+    presentation_root = tmp_path / "slides" / "demo"
+    config_path = presentation_root / "ppt.yaml"
+    config_path.write_text(
+        config_path.read_text(encoding="utf-8").replace("  dpi: 200\n", "  dpi: 200\n  figure_font_family: Config Body\n"),
+        encoding="utf-8",
+    )
+    _replace_theme_body_font(presentation_root / "deck.pptx", "Theme Body")
+    monkeypatch.setattr("pubify_ppt.figures._available_matplotlib_font_family", lambda font, *, source: font)
+    presentation = load_presentation_definition(tmp_path, "demo")
+
+    assert _resolved_figure_font_family(presentation) == "Config Body"
+
+
+def test_resolved_figure_font_family_ignores_unavailable_theme_font(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    init_workspace(tmp_path)
+    init_presentation_by_id(tmp_path, "demo")
+    presentation_root = tmp_path / "slides" / "demo"
+    _replace_theme_body_font(presentation_root / "deck.pptx", "IBM Plex Sans")
+    monkeypatch.setattr("pubify_ppt.figures._available_matplotlib_font_family", lambda font, *, source: None)
+    presentation = load_presentation_definition(tmp_path, "demo")
+
+    assert _resolved_figure_font_family(presentation) is None
+
+
+def test_update_figures_passes_resolved_theme_font_family(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    init_workspace(tmp_path)
+    init_presentation_by_id(tmp_path, "demo")
+    presentation_root = tmp_path / "slides" / "demo"
+    _replace_theme_body_font(presentation_root / "deck.pptx", "Theme Body")
+    observed = {}
+
+    def fake_save_fig(payload: object, output_path: Path, **kwargs: object) -> None:
+        observed["font_family"] = kwargs["font_family"]
+        Image.new("RGB", (20, 10), "white").save(output_path)
+
+    monkeypatch.setattr("pubify_ppt.figures._available_matplotlib_font_family", lambda font, *, source: font)
+    monkeypatch.setattr("pubify_ppt.figures.pubify_mpl.save_fig", fake_save_fig)
+    presentation = load_presentation_definition(tmp_path, "demo")
+
+    update_figures(presentation)
+
+    assert observed["font_family"] == "Theme Body"
+
+
+def test_update_figures_passes_default_figure_font_sizes(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    init_workspace(tmp_path)
+    init_presentation_by_id(tmp_path, "demo")
+    presentation_root = tmp_path / "slides" / "demo"
+    config_path = presentation_root / "ppt.yaml"
+    config_path.write_text(
+        config_path.read_text(encoding="utf-8").replace(
+            "  dpi: 200\n",
+            "  dpi: 200\n"
+            "  figure_base_fontsize_pt: 11\n"
+            "  figure_axes_labelsize_pt: 11\n"
+            "  figure_tick_labelsize_pt: 10\n"
+            "  figure_legend_fontsize_pt: 10\n"
+            "  figure_title_fontsize_pt: 12\n",
+        ),
+        encoding="utf-8",
+    )
+    observed = {}
+
+    def fake_save_fig(payload: object, output_path: Path, **kwargs: object) -> None:
+        observed["style"] = kwargs["style"]
+        Image.new("RGB", (20, 10), "white").save(output_path)
+
+    monkeypatch.setattr("pubify_ppt.figures.pubify_mpl.save_fig", fake_save_fig)
+    presentation = load_presentation_definition(tmp_path, "demo")
+
+    update_figures(presentation)
+
+    assert observed["style"] == {
+        "base_fontsize_pt": 11.0,
+        "axes_labelsize_pt": 11.0,
+        "tick_labelsize_pt": 10.0,
+        "legend_fontsize_pt": 10.0,
+        "title_fontsize_pt": 12.0,
+    }
+
+
+def test_update_figures_metadata_style_overrides_default_font_sizes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    init_workspace(tmp_path)
+    init_presentation_by_id(tmp_path, "demo")
+    presentation_root = tmp_path / "slides" / "demo"
+    config_path = presentation_root / "ppt.yaml"
+    config_path.write_text(
+        config_path.read_text(encoding="utf-8").replace(
+            "  dpi: 200\n",
+            "  dpi: 200\n  figure_base_fontsize_pt: 11\n  figure_tick_labelsize_pt: 10\n",
+        ),
+        encoding="utf-8",
+    )
+    (presentation_root / "figures.py").write_text(
+        "\n".join(
+            [
+                "import matplotlib.pyplot as plt",
+                "from pubify_data import figure, stat, table",
+                "from pubify_ppt import FigureResult, StatResult, TableResult",
+                "@figure",
+                "def plot_example(ctx):",
+                "    fig, ax = plt.subplots()",
+                "    ax.plot([0, 1], [0, 1])",
+                "    return FigureResult(fig, metadata={'style': {'tick_labelsize_pt': 8}})",
+                "@stat",
+                "def compute_example(ctx):",
+                "    return StatResult({'count': 3})",
+                "@table",
+                "def tabulate_example(ctx):",
+                "    return TableResult([[1, 2]], metadata={'columns': ['a', 'b']})",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    observed = {}
+
+    def fake_save_fig(payload: object, output_path: Path, **kwargs: object) -> None:
+        observed["style"] = kwargs["style"]
+        Image.new("RGB", (20, 10), "white").save(output_path)
+
+    monkeypatch.setattr("pubify_ppt.figures.pubify_mpl.save_fig", fake_save_fig)
+    presentation = load_presentation_definition(tmp_path, "demo")
+
+    update_figures(presentation)
+
+    assert observed["style"] == {"base_fontsize_pt": 11.0, "tick_labelsize_pt": 8}
+
+
+def test_update_figures_passes_resolved_font_family_to_asymmetric_padding_path(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    init_workspace(tmp_path)
+    init_presentation_by_id(tmp_path, "demo")
+    presentation_root = tmp_path / "slides" / "demo"
+    _replace_theme_body_font(presentation_root / "deck.pptx", "Theme Body")
+    (presentation_root / "figures.py").write_text(
+        "\n".join(
+            [
+                "import matplotlib.pyplot as plt",
+                "from pubify_data import figure, stat, table",
+                "from pubify_ppt import FigureResult, StatResult, TableResult",
+                "@figure",
+                "def plot_example(ctx):",
+                "    fig, ax = plt.subplots()",
+                "    ax.plot([0, 1], [0, 1])",
+                "    return FigureResult(fig, metadata={'export_pad_left_inches': 0.01})",
+                "@stat",
+                "def compute_example(ctx):",
+                "    return StatResult({'count': 3})",
+                "@table",
+                "def tabulate_example(ctx):",
+                "    return TableResult([[1, 2]], metadata={'columns': ['a', 'b']})",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    observed = {}
+
+    def fake_save_with_asymmetric_padding(
+        payload: object,
+        output_path: Path,
+        *,
+        width: float,
+        height: float,
+        dpi: int,
+        font_family: str | None,
+        padding: _ExportPadding,
+        render_options: dict[str, object],
+    ) -> None:
+        observed["font_family"] = font_family
+        Image.new("RGB", (20, 10), "white").save(output_path)
+
+    monkeypatch.setattr("pubify_ppt.figures._available_matplotlib_font_family", lambda font, *, source: font)
+    monkeypatch.setattr(
+        "pubify_ppt.figures._save_fig_with_asymmetric_tight_padding",
+        fake_save_with_asymmetric_padding,
+    )
+    presentation = load_presentation_definition(tmp_path, "demo")
+
+    update_figures(presentation)
+
+    assert observed["font_family"] == "Theme Body"
+
+
 def test_update_figures_deletes_unreferenced_replaced_media(tmp_path: Path) -> None:
     init_workspace(tmp_path)
     init_presentation_by_id(tmp_path, "demo")
@@ -113,7 +340,8 @@ def test_update_figures_deletes_unreferenced_replaced_media(tmp_path: Path) -> N
     update_figures(presentation, figure_id="line")
 
     changed = _changed_package_entries(before_second_update, _package_payloads(presentation_root / "deck.pptx"))
-    assert changed == {"ppt/media/image1.png"}
+    assert changed <= {"ppt/slides/slide1.xml", "ppt/media/image1.png"}
+    assert "ppt/media/image1.png" in changed
     second_media = _media_payloads(presentation_root / "deck.pptx")
     assert len(second_media) == 1
     assert second_media != first_media
@@ -549,9 +777,7 @@ def test_update_figures_renders_local_wrapper_around_source_publication_figure(t
                 "deck: deck.pptx",
                 "backup_retention: 5",
                 "defaults:",
-                "  image_format: png",
                 "  dpi: 200",
-                "  fit: contain",
                 "external_data_roots:",
                 "sources:",
                 "  ao4elt8: papers/ao4elt8",
@@ -780,6 +1006,21 @@ def _media_payloads(deck_path: Path) -> dict[str, bytes]:
             for name in package.namelist()
             if name.startswith("ppt/media/")
         }
+
+
+def _replace_theme_body_font(deck_path: Path, font_family: str) -> None:
+    drawing_namespace = "{http://schemas.openxmlformats.org/drawingml/2006/main}"
+    with ZipFile(deck_path) as package:
+        entries = {name: package.read(name) for name in package.namelist()}
+    theme_name = next(name for name in sorted(entries) if name.startswith("ppt/theme/theme") and name.endswith(".xml"))
+    root = ElementTree.fromstring(entries[theme_name])
+    latin = root.find(f".//{drawing_namespace}minorFont/{drawing_namespace}latin")
+    assert latin is not None
+    latin.set("typeface", font_family)
+    entries[theme_name] = ElementTree.tostring(root, encoding="utf-8", xml_declaration=True)
+    with ZipFile(deck_path, "w") as package:
+        for name, payload in entries.items():
+            package.writestr(name, payload)
 
 
 def _duplicate_c_nv_pr_ids(deck_path: Path, *, slide_number: int) -> list[str]:

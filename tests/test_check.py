@@ -226,9 +226,7 @@ def test_check_presentation_accepts_workspace_relative_external_data_root(tmp_pa
                 "deck: deck.pptx",
                 "backup_retention: 5",
                 "defaults:",
-                "  image_format: png",
                 "  dpi: 200",
-                "  fit: contain",
                 "external_data_roots:",
                 "  raw: raw-data",
             ]

@@ -143,6 +143,17 @@ inserted pictures are centered inside the anchor box with contain-fit
 geometry. Inserted pictures keep the original `{{fig:...}}` token as alt text
 so future updates can find them.
 
+Figure rendering uses PowerPoint typography rather than TeX typography.
+`defaults.figure_font_family` in `ppt.yaml` overrides the deck theme. Without an
+override, `pubify-ppt` reads the theme body font from
+`ppt/theme/theme*.xml` at `a:minorFont/a:latin/@typeface`; if no font can be
+resolved or Matplotlib cannot find the resolved font family, it does not force a
+Matplotlib font family. Figure font sizes are presentation-local defaults, not
+theme-derived values; `ppt.yaml` can set `figure_base_fontsize_pt`,
+`figure_axes_labelsize_pt`, `figure_tick_labelsize_pt`,
+`figure_legend_fontsize_pt`, and `figure_title_fontsize_pt`. Per-figure or
+per-panel `metadata["style"]` overrides these defaults.
+
 Figure metadata can request export-only padding with `export_pad_inches` or
 side-specific `export_pad_left_inches`, `export_pad_right_inches`,
 `export_pad_top_inches`, and `export_pad_bottom_inches`. Padding values are

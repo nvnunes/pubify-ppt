@@ -102,6 +102,35 @@ Once the figure appears correctly, resize the generated picture in PowerPoint
 as needed and rerun the same command. The deck geometry drives future render
 size.
 
+### Figure Fonts
+
+Generated figure text uses the deck's PowerPoint theme body font by default.
+`pubify-ppt` reads the theme minor Latin font from the source `.pptx` and passes
+that family to Matplotlib during figure export when Matplotlib can resolve the
+font. To override the theme for one presentation, set
+`defaults.figure_font_family` in `ppt.yaml`.
+
+Figure font sizes are presentation defaults rather than theme-derived values
+because PowerPoint sizes depend on masters, layouts, placeholders, and text
+levels. Set the sizes explicitly when the Matplotlib defaults do not match the
+deck:
+
+```yaml
+defaults:
+  dpi: 200
+  figure_font_family: Aptos
+  figure_base_fontsize_pt: 11
+  figure_axes_labelsize_pt: 11
+  figure_tick_labelsize_pt: 10
+  figure_legend_fontsize_pt: 10
+  figure_title_fontsize_pt: 12
+```
+
+If neither the config override nor a theme body font is available to Matplotlib,
+figures are rendered without forcing a font family. Per-figure
+`metadata={"style": ...}` continues to override these presentation-level
+font-size defaults.
+
 ### Figure Export Padding
 
 PowerPoint can make tight Matplotlib crops visible after scaling a PNG into a
