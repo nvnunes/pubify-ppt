@@ -102,6 +102,44 @@ Once the figure appears correctly, resize the generated picture in PowerPoint
 as needed and rerun the same command. The deck geometry drives future render
 size.
 
+### Figure Export Padding
+
+PowerPoint can make tight Matplotlib crops visible after scaling a PNG into a
+slide. Add export padding metadata when labels, spines, or tick marks land too
+close to the rendered image boundary:
+
+```python
+from pubify_data import figure
+from pubify_ppt import FigureResult
+
+
+@figure
+def plot_example(ctx):
+    fig = ...
+    return FigureResult(fig, metadata={"export_pad_inches": 0.02})
+```
+
+Side-specific padding is also supported when only one edge needs protection.
+Side-specific values override the symmetric value for that side:
+
+```python
+return FigureResult(
+    fig,
+    metadata={
+        "export_pad_inches": 0.01,
+        "export_pad_left_inches": 0.06,
+        "export_pad_bottom_inches": 0.03,
+    },
+)
+```
+
+Padding values are inches and must be non-negative numbers. The default remains
+equivalent to `export_pad_inches=0.0`. Symmetric padding is passed to
+Matplotlib as `pad_inches`. Side-specific padding expands Matplotlib's tight
+bounding box before the PNG is rendered, so it can prevent labels or spines from
+landing exactly on the PowerPoint image boundary. It is not post-render PNG
+padding.
+
 ## Reusing Paper Outputs
 
 A presentation can reuse figures, stats, and tables from another pubify

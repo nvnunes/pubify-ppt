@@ -131,6 +131,12 @@ mutating `deck.pptx`.
 - To bootstrap a figure, draw a supported shape and set its visible text
   exactly to `{{fig:example}}`; update will replace it with a picture and carry
   the token forward in Alt Text.
+- Figure metadata supports export padding, for example
+  `FigureResult(fig, metadata={"export_pad_inches": 0.02})`, with optional
+  side-specific `export_pad_left_inches`, `export_pad_right_inches`,
+  `export_pad_top_inches`, and `export_pad_bottom_inches`. Side-specific
+  padding expands Matplotlib's tight export bounding box before rendering, which
+  helps keep labels and spines away from PowerPoint image boundaries.
 - Multi-panel figures use one explicit anchor per panel, for example
   `{{fig:comparison:1}}`.
 - Reused paper outputs are declared in `ppt.yaml` under `sources:` and exposed

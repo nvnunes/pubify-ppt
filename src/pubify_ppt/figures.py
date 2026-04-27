@@ -1,9 +1,13 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
+import math
+from numbers import Real
 from pathlib import Path
 import re
 
+from matplotlib.transforms import Bbox
 from PIL import Image
 from pptx import Presentation
 from pptx.opc.constants import RELATIONSHIP_TYPE as RT
@@ -37,7 +41,20 @@ FIGURE_PREPARATION_OPTIONS = {
     "skip_clone",
     "extra_rcparams",
     "prepare_export",
+    "export_pad_inches",
+    "export_pad_left_inches",
+    "export_pad_right_inches",
+    "export_pad_top_inches",
+    "export_pad_bottom_inches",
 }
+EXPORT_PADDING_OPTIONS = {
+    "export_pad_inches",
+    "export_pad_left_inches",
+    "export_pad_right_inches",
+    "export_pad_top_inches",
+    "export_pad_bottom_inches",
+}
+ASPECT_RATIO_TOLERANCE = 0.02
 
 
 @dataclass(frozen=True)
@@ -58,6 +75,26 @@ class FigureUpdateResult:
     outputs: tuple[FigureOutput, ...]
     touched_slide_numbers: tuple[int, ...]
     media_replacements: tuple[MediaReplacement, ...]
+
+
+@dataclass(frozen=True)
+class FigureAnchorUpdate:
+    """One figure anchor update and the package parts it requires."""
+
+    media_replacement: MediaReplacement | None
+    touches_slide_xml: bool
+
+
+@dataclass(frozen=True)
+class _ExportPadding:
+    """PowerPoint figure export padding in inches."""
+
+    symmetric: float
+    left: float
+    right: float
+    top: float
+    bottom: float
+    has_side_specific: bool
 
 
 def update_figures(
@@ -138,15 +175,15 @@ def update_figures_in_deck(
             dpi=render_options.pop("dpi", presentation.config.defaults.dpi),
             preparation_options=render_options,
         )
-        media_replacement = _replace_anchor_with_picture(
+        anchor_update = _replace_anchor_with_picture(
             anchor,
             output_path,
             force_distinct_media=_anchor_key(anchor) in detach_keys,
         )
-        if media_replacement is None:
+        if anchor_update.touches_slide_xml:
             touched_slide_numbers.append(anchor.slide_number)
-        else:
-            media_replacements.append(media_replacement)
+        if anchor_update.media_replacement is not None:
+            media_replacements.append(anchor_update.media_replacement)
         outputs.append(FigureOutput(anchor.slide_number, anchor.shape_index, anchor.token, output_path))
 
     return FigureUpdateResult(
@@ -289,16 +326,67 @@ def _render_panel_png(
     preparation_options: dict[str, object] | None = None,
 ) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
+    render_options = dict(preparation_options or {})
+    padding = _export_padding(render_options)
+    if padding.has_side_specific:
+        _save_fig_with_asymmetric_tight_padding(
+            payload,
+            output_path,
+            width=width_emu / EMU_PER_INCH,
+            height=height_emu / EMU_PER_INCH,
+            dpi=dpi,
+            padding=padding,
+            render_options=render_options,
+        )
+        return
+
     pubify_mpl.save_fig(
         payload,
         output_path,
         width=width_emu / EMU_PER_INCH,
         height=height_emu / EMU_PER_INCH,
-        **dict(preparation_options or {}),
+        **render_options,
         dpi=dpi,
         text_usetex=False,
         bbox_inches="tight",
-        pad_inches=0.0,
+        pad_inches=padding.symmetric,
+    )
+
+
+def _save_fig_with_asymmetric_tight_padding(
+    payload: object,
+    output_path: Path,
+    *,
+    width: float,
+    height: float,
+    dpi: int,
+    padding: _ExportPadding,
+    render_options: dict[str, object],
+) -> None:
+    with pubify_mpl.prepare_figure(
+        payload,
+        **render_options,
+        dpi=dpi,
+        text_usetex=False,
+    ) as fig_export:
+        fig_export.set_size_inches(width, height, forward=True)
+        expanded_bbox = _asymmetric_tight_bbox(fig_export, padding)
+        fig_export.savefig(
+            output_path,
+            dpi=dpi,
+            bbox_inches=expanded_bbox,
+            pad_inches=0.0,
+        )
+
+
+def _asymmetric_tight_bbox(figure: object, padding: _ExportPadding) -> Bbox:
+    figure.canvas.draw()
+    tight_bbox = figure.get_tightbbox(figure.canvas.get_renderer())
+    return Bbox.from_extents(
+        tight_bbox.x0 - padding.left,
+        tight_bbox.y0 - padding.bottom,
+        tight_bbox.x1 + padding.right,
+        tight_bbox.y1 + padding.top,
     )
 
 
@@ -315,7 +403,38 @@ def _figure_render_options(
     dpi = options.get("dpi")
     if dpi is not None and (isinstance(dpi, bool) or not isinstance(dpi, int) or dpi <= 0):
         raise ValueError("PowerPoint figure metadata option dpi must be a positive integer")
+    _validate_export_padding_options(options)
     return options
+
+
+def _validate_export_padding_options(options: Mapping[str, object]) -> None:
+    for key in EXPORT_PADDING_OPTIONS:
+        value = options.get(key)
+        if value is None:
+            continue
+        if isinstance(value, bool) or not isinstance(value, Real) or not math.isfinite(float(value)) or value < 0:
+            raise ValueError(f"PowerPoint figure metadata option {key} must be a non-negative number")
+
+
+def _export_padding(options: dict[str, object]) -> _ExportPadding:
+    symmetric = float(options.pop("export_pad_inches", 0.0))
+    side_values: dict[str, float] = {}
+    has_side_specific = False
+    for side in ("left", "right", "top", "bottom"):
+        key = f"export_pad_{side}_inches"
+        if key in options:
+            has_side_specific = True
+            side_values[side] = float(options.pop(key))
+        else:
+            side_values[side] = symmetric
+    return _ExportPadding(
+        symmetric=symmetric,
+        left=side_values["left"],
+        right=side_values["right"],
+        top=side_values["top"],
+        bottom=side_values["bottom"],
+        has_side_specific=has_side_specific,
+    )
 
 
 def _replace_anchor_with_picture(
@@ -323,12 +442,12 @@ def _replace_anchor_with_picture(
     image_path: Path,
     *,
     force_distinct_media: bool = False,
-) -> MediaReplacement | None:
+) -> FigureAnchorUpdate:
     if force_distinct_media and _detach_picture_media(anchor, image_path):
-        return None
-    media_replacement = _direct_picture_media_replacement(anchor, image_path)
-    if media_replacement is not None:
-        return media_replacement
+        return FigureAnchorUpdate(media_replacement=None, touches_slide_xml=True)
+    direct_update = _direct_picture_media_replacement(anchor, image_path)
+    if direct_update is not None:
+        return direct_update
 
     shape = anchor.shape
     slide = shape.part.slide
@@ -352,7 +471,7 @@ def _replace_anchor_with_picture(
         height=picture_height,
     )
     set_shape_alt_text(picture, anchor.token)
-    return None
+    return FigureAnchorUpdate(media_replacement=None, touches_slide_xml=True)
 
 
 def _detach_picture_media(anchor: FigureAnchor, image_path: Path) -> bool:
@@ -365,7 +484,7 @@ def _detach_picture_media(anchor: FigureAnchor, image_path: Path) -> bool:
     return True
 
 
-def _direct_picture_media_replacement(anchor: FigureAnchor, image_path: Path) -> MediaReplacement | None:
+def _direct_picture_media_replacement(anchor: FigureAnchor, image_path: Path) -> FigureAnchorUpdate | None:
     r_ids = _embedded_image_r_ids(anchor.shape._element)
     if len(r_ids) != 1:
         return None
@@ -374,7 +493,43 @@ def _direct_picture_media_replacement(anchor: FigureAnchor, image_path: Path) ->
     part_name = str(target_part.partname)
     if target_part.content_type != "image/png" or not part_name.lower().endswith(".png"):
         return None
-    return MediaReplacement(part_name=part_name, blob=image_path.read_bytes())
+    touches_slide_xml = False
+    if not _aspect_ratio_matches_picture_geometry(anchor.shape, image_path):
+        _set_picture_geometry_to_contained_image(anchor.shape, image_path)
+        touches_slide_xml = True
+    return FigureAnchorUpdate(
+        media_replacement=MediaReplacement(part_name=part_name, blob=image_path.read_bytes()),
+        touches_slide_xml=touches_slide_xml,
+    )
+
+
+def _aspect_ratio_matches_picture_geometry(shape: object, image_path: Path) -> bool:
+    with Image.open(image_path) as image:
+        image_aspect = image.width / image.height
+    geometry_aspect = shape.width / shape.height
+    return abs(image_aspect - geometry_aspect) / geometry_aspect <= ASPECT_RATIO_TOLERANCE
+
+
+def _set_picture_geometry_to_contained_image(shape: object, image_path: Path) -> None:
+    left, top, width, height = _contained_geometry(
+        image_path,
+        left=shape.left,
+        top=shape.top,
+        width=shape.width,
+        height=shape.height,
+    )
+    xfrm_matches = shape._element.xpath(".//a:xfrm")
+    if not xfrm_matches:
+        raise ValueError("Picture shape does not expose a transform node")
+    xfrm = xfrm_matches[0]
+    off_matches = xfrm.xpath("./a:off")
+    ext_matches = xfrm.xpath("./a:ext")
+    if not off_matches or not ext_matches:
+        raise ValueError("Picture shape does not expose transform geometry")
+    off_matches[0].set("x", str(int(left)))
+    off_matches[0].set("y", str(int(top)))
+    ext_matches[0].set("cx", str(int(width)))
+    ext_matches[0].set("cy", str(int(height)))
 
 
 def _embedded_image_r_ids(element: object) -> tuple[str, ...]:

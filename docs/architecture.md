@@ -143,6 +143,14 @@ inserted pictures are centered inside the anchor box with contain-fit
 geometry. Inserted pictures keep the original `{{fig:...}}` token as alt text
 so future updates can find them.
 
+Figure metadata can request export-only padding with `export_pad_inches` or
+side-specific `export_pad_left_inches`, `export_pad_right_inches`,
+`export_pad_top_inches`, and `export_pad_bottom_inches`. Padding values are
+non-negative inches. Symmetric padding is passed through to Matplotlib export as
+`pad_inches`. Side-specific padding expands Matplotlib's tight bounding box in
+inches before `savefig`, so labels and spines can be protected before the PNG is
+finalized instead of adding blank pixels after a clipped render.
+
 For bootstrap authoring, a supported shape whose visible text is exactly one
 `{{fig:...}}` token is treated as an anchor. The update replaces the shape with
 a picture and persists the token in alt text; after that, alt text is the
@@ -153,10 +161,14 @@ pictures. Unsupported anchor features, such as grouping, rotation, or cropping,
 are validation errors rather than silently changed layout.
 
 Existing generated picture anchors are refreshed by replacing the already
-referenced PNG media part directly. This keeps the slide XML and slide
-relationship XML unchanged on normal figure reruns. Placeholder-to-picture
-bootstrap updates still need to change the slide XML because they create the
-initial PowerPoint picture object.
+referenced PNG media part directly when the new PNG aspect ratio is compatible
+with the existing picture geometry. This keeps the slide XML and slide
+relationship XML unchanged on normal figure reruns. When the rendered aspect
+ratio changes, `pubify-ppt` still preserves the existing picture object and
+relationship, but surgically updates that picture's transform geometry so the
+new PNG is contained without distortion. Placeholder-to-picture bootstrap
+updates still need to change the slide XML because they create the initial
+PowerPoint picture object.
 
 ## Stat Updates
 

@@ -4,6 +4,7 @@ from pathlib import Path
 from xml.etree import ElementTree
 from zipfile import ZipFile
 
+import matplotlib.pyplot as plt
 from PIL import Image
 from pptx import Presentation
 from pptx.enum.shapes import MSO_SHAPE
@@ -12,6 +13,8 @@ from pptx.util import Inches
 import pytest
 
 from pubify_ppt.discovery import load_presentation_definition
+from pubify_ppt.figures import _ExportPadding
+from pubify_ppt.figures import _asymmetric_tight_bbox
 from pubify_ppt.figures import update_figures
 from pubify_ppt.init import init_presentation_by_id, init_workspace
 
@@ -98,14 +101,14 @@ def test_update_figures_deletes_unreferenced_replaced_media(tmp_path: Path) -> N
     init_workspace(tmp_path)
     init_presentation_by_id(tmp_path, "demo")
     presentation_root = tmp_path / "slides" / "demo"
-    _write_single_line_figure_module(presentation_root, [1, 2, 3])
+    _write_colored_line_figure_module(presentation_root, color="red")
     _write_deck_with_figure_anchor(presentation_root, "{{fig:line}}")
     presentation = load_presentation_definition(tmp_path, "demo")
     update_figures(presentation, figure_id="line")
     first_media = _media_payloads(presentation_root / "deck.pptx")
     before_second_update = _package_payloads(presentation_root / "deck.pptx")
 
-    _write_single_line_figure_module(presentation_root, [3, 1, 2])
+    _write_colored_line_figure_module(presentation_root, color="blue")
     presentation = load_presentation_definition(tmp_path, "demo")
     update_figures(presentation, figure_id="line")
 
@@ -116,6 +119,30 @@ def test_update_figures_deletes_unreferenced_replaced_media(tmp_path: Path) -> N
     assert second_media != first_media
     assert _unused_image_relationship_ids(presentation_root / "deck.pptx", slide_number=1) == []
     assert _duplicate_c_nv_pr_ids(presentation_root / "deck.pptx", slide_number=1) == []
+
+
+def test_update_figures_updates_existing_picture_geometry_when_aspect_changes(tmp_path: Path) -> None:
+    init_workspace(tmp_path)
+    init_presentation_by_id(tmp_path, "demo")
+    presentation_root = tmp_path / "slides" / "demo"
+    _write_padded_line_figure_module(presentation_root, left_padding=0.0)
+    _write_deck_with_figure_anchor(presentation_root, "{{fig:line}}")
+    presentation = load_presentation_definition(tmp_path, "demo")
+    (first_output,) = update_figures(presentation, figure_id="line")
+    first_aspect = _png_aspect(first_output)
+    first_geometry = _single_picture_geometry(presentation_root / "deck.pptx")
+    before_second_update = _package_payloads(presentation_root / "deck.pptx")
+
+    _write_padded_line_figure_module(presentation_root, left_padding=1.0)
+    presentation = load_presentation_definition(tmp_path, "demo")
+    (second_output,) = update_figures(presentation, figure_id="line")
+
+    changed = _changed_package_entries(before_second_update, _package_payloads(presentation_root / "deck.pptx"))
+    assert changed == {"ppt/slides/slide1.xml", "ppt/media/image1.png"}
+    second_geometry = _single_picture_geometry(presentation_root / "deck.pptx")
+    assert second_geometry != first_geometry
+    assert _aspect_ratio(second_geometry[2], second_geometry[3]) == pytest.approx(_png_aspect(second_output), rel=0.01)
+    assert _png_aspect(second_output) != pytest.approx(first_aspect, rel=0.01)
 
 
 def test_update_figures_detaches_copied_managed_picture_anchors(tmp_path: Path) -> None:
@@ -272,6 +299,139 @@ def test_update_figures_saves_reused_axes_panel_with_tight_bbox(tmp_path: Path) 
     assert [path.name for path in outputs] == ["reused_axes.png"]
     with Image.open(outputs[0]) as image:
         assert image.size != (600, 400)
+
+
+def test_update_figures_accepts_symmetric_export_padding(tmp_path: Path) -> None:
+    init_workspace(tmp_path)
+    init_presentation_by_id(tmp_path, "demo")
+    presentation_root = tmp_path / "slides" / "demo"
+    (presentation_root / "figures.py").write_text(
+        "\n".join(
+            [
+                "import matplotlib.pyplot as plt",
+                "from pubify_data import figure",
+                "from pubify_ppt import FigureResult",
+                "def make_fig():",
+                "    fig, ax = plt.subplots()",
+                "    ax.plot([0, 1], [0, 1])",
+                "    return fig",
+                "@figure",
+                "def plot_plain(ctx):",
+                "    return make_fig()",
+                "@figure",
+                "def plot_padded(ctx):",
+                "    return FigureResult(make_fig(), metadata={'export_pad_inches': 0.05})",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    deck = Presentation()
+    slide = deck.slides.add_slide(deck.slide_layouts[6])
+    first = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, Inches(0.5), Inches(0.5), Inches(3), Inches(2))
+    second = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, Inches(4), Inches(0.5), Inches(3), Inches(2))
+    _set_shape_alt_text(first, "{{fig:plain}}")
+    _set_shape_alt_text(second, "{{fig:padded}}")
+    deck.save(presentation_root / "deck.pptx")
+    presentation = load_presentation_definition(tmp_path, "demo")
+
+    outputs = update_figures(presentation)
+
+    by_name = {path.name: path for path in outputs}
+    with Image.open(by_name["plain.png"]) as plain, Image.open(by_name["padded.png"]) as padded:
+        assert padded.width > plain.width
+        assert padded.height > plain.height
+
+
+def test_update_figures_applies_side_specific_export_padding(tmp_path: Path) -> None:
+    init_workspace(tmp_path)
+    init_presentation_by_id(tmp_path, "demo")
+    presentation_root = tmp_path / "slides" / "demo"
+    _write_black_left_padded_figure_module(presentation_root, left_padding=0.0)
+    deck = Presentation()
+    slide = deck.slides.add_slide(deck.slide_layouts[6])
+    shape = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, Inches(0.5), Inches(0.5), Inches(3), Inches(2))
+    _set_shape_alt_text(shape, "{{fig:left_padded}}")
+    deck.save(presentation_root / "deck.pptx")
+    presentation = load_presentation_definition(tmp_path, "demo")
+
+    (plain_output,) = update_figures(presentation, figure_id="left_padded")
+    plain_first_content_column = _first_non_blank_column(plain_output)
+    _write_black_left_padded_figure_module(presentation_root, left_padding=0.08)
+    presentation = load_presentation_definition(tmp_path, "demo")
+    (output,) = update_figures(presentation, figure_id="left_padded")
+
+    with Image.open(output) as image:
+        padding_pixel = image.getpixel((0, image.height // 2))
+        assert _is_blank_export_padding_pixel(padding_pixel)
+        assert _is_opaque_pixel(padding_pixel)
+    assert _first_non_blank_column(output) > plain_first_content_column
+
+
+def test_side_specific_export_padding_expands_matplotlib_tight_bbox() -> None:
+    fig, ax = plt.subplots()
+    ax.plot([0, 1], [0, 1])
+    try:
+        plain = _asymmetric_tight_bbox(
+            fig,
+            _ExportPadding(
+                symmetric=0.0,
+                left=0.0,
+                right=0.0,
+                top=0.0,
+                bottom=0.0,
+                has_side_specific=True,
+            ),
+        )
+        padded = _asymmetric_tight_bbox(
+            fig,
+            _ExportPadding(
+                symmetric=0.0,
+                left=0.06,
+                right=0.02,
+                top=0.03,
+                bottom=0.01,
+                has_side_specific=True,
+            ),
+        )
+    finally:
+        plt.close(fig)
+
+    assert padded.x0 == pytest.approx(plain.x0 - 0.06)
+    assert padded.x1 == pytest.approx(plain.x1 + 0.02)
+    assert padded.y0 == pytest.approx(plain.y0 - 0.01)
+    assert padded.y1 == pytest.approx(plain.y1 + 0.03)
+
+
+def test_update_figures_rejects_invalid_export_padding_metadata(tmp_path: Path) -> None:
+    init_workspace(tmp_path)
+    init_presentation_by_id(tmp_path, "demo")
+    presentation_root = tmp_path / "slides" / "demo"
+    (presentation_root / "figures.py").write_text(
+        "\n".join(
+            [
+                "import matplotlib.pyplot as plt",
+                "from pubify_data import figure",
+                "from pubify_ppt import FigureResult",
+                "@figure",
+                "def plot_bad_padding(ctx):",
+                "    fig, ax = plt.subplots()",
+                "    ax.plot([1, 2], [1, 2])",
+                "    return FigureResult(fig, metadata={'export_pad_left_inches': -0.01})",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    deck = Presentation()
+    slide = deck.slides.add_slide(deck.slide_layouts[6])
+    shape = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, Inches(0.5), Inches(0.5), Inches(3), Inches(2))
+    _set_shape_alt_text(shape, "{{fig:bad_padding}}")
+    deck.save(presentation_root / "deck.pptx")
+    presentation = load_presentation_definition(tmp_path, "demo")
+
+    with pytest.raises(ValueError, match="export_pad_left_inches must be a non-negative number"):
+        update_figures(presentation, figure_id="bad_padding")
 
 
 def test_targeted_figure_update_preserves_prefix_matching_png(tmp_path: Path) -> None:
@@ -463,6 +623,75 @@ def _write_single_line_figure_module(presentation_root: Path, y_values: list[int
     )
 
 
+def _write_colored_line_figure_module(presentation_root: Path, *, color: str) -> None:
+    (presentation_root / "figures.py").write_text(
+        "\n".join(
+            [
+                "import matplotlib.pyplot as plt",
+                "from pubify_data import figure",
+                "@figure",
+                "def plot_line(ctx):",
+                "    fig, ax = plt.subplots()",
+                f"    fig.patch.set_facecolor({color!r})",
+                "    ax.set_xlim(0, 1)",
+                "    ax.set_ylim(0, 1)",
+                "    ax.plot([0, 1], [0, 1], color='black')",
+                "    return fig",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+
+def _write_padded_line_figure_module(
+    presentation_root: Path,
+    *,
+    left_padding: float,
+    figure_id: str = "line",
+) -> None:
+    (presentation_root / "pad.txt").write_text(str(left_padding), encoding="utf-8")
+    (presentation_root / "figures.py").write_text(
+        "\n".join(
+            [
+                "from pathlib import Path",
+                "import matplotlib.pyplot as plt",
+                "from pubify_data import figure",
+                "from pubify_ppt import FigureResult",
+                "@figure",
+                f"def plot_{figure_id}(ctx):",
+                "    fig, ax = plt.subplots()",
+                "    ax.plot([1, 2, 3], [1, 2, 3])",
+                "    pad = float(Path(__file__).with_name('pad.txt').read_text(encoding='utf-8'))",
+                "    return FigureResult(fig, metadata={'export_pad_left_inches': pad})",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+
+def _write_black_left_padded_figure_module(presentation_root: Path, *, left_padding: float) -> None:
+    (presentation_root / "figures.py").write_text(
+        "\n".join(
+            [
+                "import matplotlib.pyplot as plt",
+                "from pubify_data import figure",
+                "from pubify_ppt import FigureResult",
+                "@figure",
+                "def plot_left_padded(ctx):",
+                "    fig, ax = plt.subplots()",
+                "    ax.set_facecolor('black')",
+                "    ax.set_ylabel('left edge label')",
+                "    ax.plot([0, 1], [0, 1], color='white')",
+                f"    return FigureResult(fig, metadata={{'export_pad_left_inches': {left_padding!r}}})",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+
 def _write_two_line_figure_module(presentation_root: Path) -> None:
     (presentation_root / "figures.py").write_text(
         "\n".join(
@@ -564,3 +793,45 @@ def _duplicate_c_nv_pr_ids(deck_path: Path, *, slide_number: int) -> list[str]:
         if "id" in element.attrib
     ]
     return sorted({value for value in ids if ids.count(value) > 1})
+
+
+def _single_picture_geometry(deck_path: Path) -> tuple[int, int, int, int]:
+    deck = Presentation(deck_path)
+    pictures = [shape for slide in deck.slides for shape in slide.shapes if shape.shape_type == MSO_SHAPE_TYPE.PICTURE]
+    assert len(pictures) == 1
+    picture = pictures[0]
+    return int(picture.left), int(picture.top), int(picture.width), int(picture.height)
+
+
+def _png_aspect(path: Path) -> float:
+    with Image.open(path) as image:
+        return _aspect_ratio(image.width, image.height)
+
+
+def _aspect_ratio(width: int, height: int) -> float:
+    return width / height
+
+
+def _first_non_blank_column(path: Path) -> int:
+    with Image.open(path) as image:
+        for x in range(image.width):
+            for y in range(image.height):
+                if not _is_blank_export_padding_pixel(image.getpixel((x, y))):
+                    return x
+    raise AssertionError("image did not contain any non-blank pixels")
+
+
+def _is_blank_export_padding_pixel(pixel: object) -> bool:
+    if isinstance(pixel, int):
+        return pixel == 255
+    channels = tuple(pixel)
+    if len(channels) >= 4 and channels[3] == 0:
+        return True
+    return len(channels) >= 3 and channels[:3] == (255, 255, 255)
+
+
+def _is_opaque_pixel(pixel: object) -> bool:
+    if isinstance(pixel, int):
+        return True
+    channels = tuple(pixel)
+    return len(channels) < 4 or channels[3] == 255
