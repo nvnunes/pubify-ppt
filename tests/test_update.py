@@ -97,15 +97,19 @@ def _changed_package_entries(before: dict[str, bytes], after: dict[str, bytes]) 
 
 
 def _write_line_figure_module(presentation_root: Path, y_values: list[int]) -> None:
+    (presentation_root / "line-values.txt").write_text(repr(y_values), encoding="utf-8")
     (presentation_root / "figures.py").write_text(
         "\n".join(
             [
+                "import ast",
+                "from pathlib import Path",
                 "import matplotlib.pyplot as plt",
                 "from pubify_data import figure",
                 "@figure",
                 "def plot_line(ctx):",
                 "    fig, ax = plt.subplots()",
-                f"    ax.plot([1, 2, 3], {y_values!r})",
+                "    y_values = ast.literal_eval(Path(__file__).with_name('line-values.txt').read_text(encoding='utf-8'))",
+                "    ax.plot([1, 2, 3], y_values)",
                 "    return fig",
             ]
         )

@@ -133,9 +133,13 @@ font-size defaults.
 
 ### Figure Export Padding
 
-PowerPoint can make tight Matplotlib crops visible after scaling a PNG into a
-slide. Add export padding metadata when labels, spines, or tick marks land too
-close to the rendered image boundary:
+Generated figure PNGs are rendered on a canvas whose physical size matches the
+PowerPoint anchor at the configured DPI. `pubify-ppt` still uses Matplotlib's
+tight bounding box to avoid stale source-figure margins, but the final PNG keeps
+the anchor dimensions so PowerPoint does not scale text up or down after export.
+
+Add export padding metadata when labels, spines, or tick marks land too close to
+the rendered image boundary:
 
 ```python
 from pubify_data import figure
@@ -163,11 +167,12 @@ return FigureResult(
 ```
 
 Padding values are inches and must be non-negative numbers. The default remains
-equivalent to `export_pad_inches=0.0`. Symmetric padding is passed to
-Matplotlib as `pad_inches`. Side-specific padding expands Matplotlib's tight
-bounding box before the PNG is rendered, so it can prevent labels or spines from
-landing exactly on the PowerPoint image boundary. It is not post-render PNG
-padding.
+equivalent to `export_pad_inches=0.0`. Padding expands Matplotlib's tight
+bounding box before the fixed anchor-sized PNG is rendered, so it can prevent
+labels or spines from landing exactly on the PowerPoint image boundary. It is
+not post-render PNG padding. If the padded tight content cannot fit into the
+anchor at the requested font sizes, update fails; enlarge the anchor, reduce the
+figure font size, or reduce export padding.
 
 ## Reusing Paper Outputs
 

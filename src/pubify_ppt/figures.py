@@ -59,6 +59,10 @@ EXPORT_PADDING_OPTIONS = {
     "export_pad_bottom_inches",
 }
 ASPECT_RATIO_TOLERANCE = 0.02
+ANCHOR_CANVAS_OVERRUN_TOLERANCE = 0.05
+ANCHOR_CANVAS_ROUNDING_TOLERANCE_PX = 2
+ANCHOR_CANVAS_LAYOUT_SCALE_TOLERANCE = 0.01
+ANCHOR_CANVAS_LAYOUT_SCALE_ITERATIONS = 3
 
 
 @dataclass(frozen=True)
@@ -335,34 +339,21 @@ def _render_panel_png(
     output_path.parent.mkdir(parents=True, exist_ok=True)
     render_options = dict(preparation_options or {})
     padding = _export_padding(render_options)
-    if padding.has_side_specific:
-        _save_fig_with_asymmetric_tight_padding(
-            payload,
-            output_path,
-            width=width_emu / EMU_PER_INCH,
-            height=height_emu / EMU_PER_INCH,
-            dpi=dpi,
-            font_family=font_family,
-            padding=padding,
-            render_options=render_options,
-        )
-        return
-
-    pubify_mpl.save_fig(
+    width = width_emu / EMU_PER_INCH
+    height = height_emu / EMU_PER_INCH
+    _save_fig_on_anchor_canvas(
         payload,
         output_path,
-        width=width_emu / EMU_PER_INCH,
-        height=height_emu / EMU_PER_INCH,
-        **render_options,
+        width=width,
+        height=height,
         dpi=dpi,
-        text_usetex=False,
         font_family=font_family,
-        bbox_inches="tight",
-        pad_inches=padding.symmetric,
+        padding=padding,
+        render_options=render_options,
     )
 
 
-def _save_fig_with_asymmetric_tight_padding(
+def _save_fig_on_anchor_canvas(
     payload: object,
     output_path: Path,
     *,
@@ -381,13 +372,15 @@ def _save_fig_with_asymmetric_tight_padding(
         font_family=font_family,
     ) as fig_export:
         fig_export.set_size_inches(width, height, forward=True)
-        expanded_bbox = _asymmetric_tight_bbox(fig_export, padding)
+        _fit_figure_layout_to_anchor_canvas(fig_export, padding, width=width, height=height)
+        export_bbox = _anchor_canvas_bbox(fig_export, padding, width=width, height=height, dpi=dpi)
         fig_export.savefig(
             output_path,
             dpi=dpi,
-            bbox_inches=expanded_bbox,
+            bbox_inches=export_bbox,
             pad_inches=0.0,
         )
+    _normalize_png_rounding(output_path, width=width, height=height, dpi=dpi)
 
 
 def _asymmetric_tight_bbox(figure: object, padding: _ExportPadding) -> Bbox:
@@ -399,6 +392,122 @@ def _asymmetric_tight_bbox(figure: object, padding: _ExportPadding) -> Bbox:
         tight_bbox.x1 + padding.right,
         tight_bbox.y1 + padding.top,
     )
+
+
+def _anchor_canvas_bbox(
+    figure: object,
+    padding: _ExportPadding,
+    *,
+    width: float,
+    height: float,
+    dpi: int,
+) -> Bbox:
+    figure.canvas.draw()
+    tight_bbox = figure.get_tightbbox(figure.canvas.get_renderer())
+    minimum_width = tight_bbox.width + padding.left + padding.right
+    minimum_height = tight_bbox.height + padding.bottom + padding.top
+    if (
+        minimum_width > width * (1 + ANCHOR_CANVAS_OVERRUN_TOLERANCE)
+        or minimum_height > height * (1 + ANCHOR_CANVAS_OVERRUN_TOLERANCE)
+    ):
+        target_width = round(width * dpi)
+        target_height = round(height * dpi)
+        required_width = math.ceil(minimum_width * dpi)
+        required_height = math.ceil(minimum_height * dpi)
+        raise ValueError(
+            f"Rendered figure needs {required_width}x{required_height}px, larger than the "
+            f"PowerPoint anchor canvas {target_width}x{target_height}px at {dpi} dpi. "
+            "Enlarge the anchor, reduce figure font size, or reduce export padding."
+        )
+
+    extra_width = max(0.0, width - minimum_width)
+    extra_height = max(0.0, height - minimum_height)
+    left_margin = _resolved_lower_margin(padding.left, padding.right, extra_width)
+    bottom_margin = _resolved_lower_margin(padding.bottom, padding.top, extra_height)
+    return Bbox.from_bounds(
+        tight_bbox.x0 - left_margin,
+        tight_bbox.y0 - bottom_margin,
+        width,
+        height,
+    )
+
+
+def _resolved_lower_margin(lower: float, upper: float, extra: float) -> float:
+    if lower > 0 and upper == 0:
+        return lower
+    if upper > 0 and lower == 0:
+        return extra
+    return lower + extra / 2
+
+
+def _fit_figure_layout_to_anchor_canvas(
+    figure: object,
+    padding: _ExportPadding,
+    *,
+    width: float,
+    height: float,
+) -> None:
+    current_width, current_height = width, height
+    for _ in range(ANCHOR_CANVAS_LAYOUT_SCALE_ITERATIONS):
+        content_width, content_height = _padded_tight_size(figure, padding)
+        if content_width <= 0 or content_height <= 0:
+            return
+        scale = min(width / content_width, height / content_height)
+        if scale <= 1 + ANCHOR_CANVAS_LAYOUT_SCALE_TOLERANCE:
+            return
+        current_width *= scale
+        current_height *= scale
+        figure.set_size_inches(current_width, current_height, forward=True)
+
+
+def _padded_tight_size(figure: object, padding: _ExportPadding) -> tuple[float, float]:
+    figure.canvas.draw()
+    tight_bbox = figure.get_tightbbox(figure.canvas.get_renderer())
+    return (
+        tight_bbox.width + padding.left + padding.right,
+        tight_bbox.height + padding.bottom + padding.top,
+    )
+
+
+def _normalize_png_rounding(output_path: Path, *, width: float, height: float, dpi: int) -> None:
+    target_width = round(width * dpi)
+    target_height = round(height * dpi)
+    with Image.open(output_path) as image:
+        source = image.copy()
+    if source.size == (target_width, target_height):
+        return
+    if (
+        abs(source.width - target_width) > ANCHOR_CANVAS_ROUNDING_TOLERANCE_PX
+        or abs(source.height - target_height) > ANCHOR_CANVAS_ROUNDING_TOLERANCE_PX
+    ):
+        raise ValueError(
+            f"Rendered figure is {source.width}x{source.height}px, but expected "
+            f"{target_width}x{target_height}px for the PowerPoint anchor at {dpi} dpi."
+        )
+
+    canvas = Image.new(source.mode, (target_width, target_height), _background_pixel(source))
+    paste_left = max(0, round((target_width - source.width) / 2))
+    paste_top = max(0, round((target_height - source.height) / 2))
+    crop_left = max(0, round((source.width - target_width) / 2))
+    crop_top = max(0, round((source.height - target_height) / 2))
+    crop_right = crop_left + min(source.width, target_width)
+    crop_bottom = crop_top + min(source.height, target_height)
+    canvas.paste(source.crop((crop_left, crop_top, crop_right, crop_bottom)), (paste_left, paste_top))
+    canvas.save(output_path)
+
+
+def _background_pixel(image: Image.Image) -> object:
+    if image.mode == "RGBA":
+        return (255, 255, 255, 255)
+    if image.mode == "LA":
+        return (255, 255)
+    if image.mode == "L":
+        return 255
+    if image.mode == "P":
+        return 0
+    if image.mode == "CMYK":
+        return (0, 0, 0, 0)
+    return (255, 255, 255)
 
 
 def _resolved_figure_font_family(presentation: PresentationDefinition) -> str | None:

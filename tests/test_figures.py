@@ -17,6 +17,7 @@ from pubify_ppt.figures import _ExportPadding
 from pubify_ppt.figures import _asymmetric_tight_bbox
 from pubify_ppt.figures import _available_matplotlib_font_family
 from pubify_ppt.figures import _resolved_figure_font_family
+from pubify_ppt.figures import _render_panel_png
 from pubify_ppt.figures import _theme_body_font_family
 from pubify_ppt.figures import update_figures
 from pubify_ppt.init import init_presentation_by_id, init_workspace
@@ -165,12 +166,22 @@ def test_update_figures_passes_resolved_theme_font_family(tmp_path: Path, monkey
     _replace_theme_body_font(presentation_root / "deck.pptx", "Theme Body")
     observed = {}
 
-    def fake_save_fig(payload: object, output_path: Path, **kwargs: object) -> None:
-        observed["font_family"] = kwargs["font_family"]
+    def fake_save_on_anchor_canvas(
+        payload: object,
+        output_path: Path,
+        *,
+        width: float,
+        height: float,
+        dpi: int,
+        font_family: str | None,
+        padding: _ExportPadding,
+        render_options: dict[str, object],
+    ) -> None:
+        observed["font_family"] = font_family
         Image.new("RGB", (20, 10), "white").save(output_path)
 
     monkeypatch.setattr("pubify_ppt.figures._available_matplotlib_font_family", lambda font, *, source: font)
-    monkeypatch.setattr("pubify_ppt.figures.pubify_mpl.save_fig", fake_save_fig)
+    monkeypatch.setattr("pubify_ppt.figures._save_fig_on_anchor_canvas", fake_save_on_anchor_canvas)
     presentation = load_presentation_definition(tmp_path, "demo")
 
     update_figures(presentation)
@@ -197,11 +208,21 @@ def test_update_figures_passes_default_figure_font_sizes(tmp_path: Path, monkeyp
     )
     observed = {}
 
-    def fake_save_fig(payload: object, output_path: Path, **kwargs: object) -> None:
-        observed["style"] = kwargs["style"]
+    def fake_save_on_anchor_canvas(
+        payload: object,
+        output_path: Path,
+        *,
+        width: float,
+        height: float,
+        dpi: int,
+        font_family: str | None,
+        padding: _ExportPadding,
+        render_options: dict[str, object],
+    ) -> None:
+        observed["style"] = render_options["style"]
         Image.new("RGB", (20, 10), "white").save(output_path)
 
-    monkeypatch.setattr("pubify_ppt.figures.pubify_mpl.save_fig", fake_save_fig)
+    monkeypatch.setattr("pubify_ppt.figures._save_fig_on_anchor_canvas", fake_save_on_anchor_canvas)
     presentation = load_presentation_definition(tmp_path, "demo")
 
     update_figures(presentation)
@@ -254,11 +275,21 @@ def test_update_figures_metadata_style_overrides_default_font_sizes(
     )
     observed = {}
 
-    def fake_save_fig(payload: object, output_path: Path, **kwargs: object) -> None:
-        observed["style"] = kwargs["style"]
+    def fake_save_on_anchor_canvas(
+        payload: object,
+        output_path: Path,
+        *,
+        width: float,
+        height: float,
+        dpi: int,
+        font_family: str | None,
+        padding: _ExportPadding,
+        render_options: dict[str, object],
+    ) -> None:
+        observed["style"] = render_options["style"]
         Image.new("RGB", (20, 10), "white").save(output_path)
 
-    monkeypatch.setattr("pubify_ppt.figures.pubify_mpl.save_fig", fake_save_fig)
+    monkeypatch.setattr("pubify_ppt.figures._save_fig_on_anchor_canvas", fake_save_on_anchor_canvas)
     presentation = load_presentation_definition(tmp_path, "demo")
 
     update_figures(presentation)
@@ -266,7 +297,7 @@ def test_update_figures_metadata_style_overrides_default_font_sizes(
     assert observed["style"] == {"base_fontsize_pt": 11.0, "tick_labelsize_pt": 8}
 
 
-def test_update_figures_passes_resolved_font_family_to_asymmetric_padding_path(
+def test_update_figures_passes_resolved_font_family_to_anchor_canvas_path(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -298,7 +329,7 @@ def test_update_figures_passes_resolved_font_family_to_asymmetric_padding_path(
     )
     observed = {}
 
-    def fake_save_with_asymmetric_padding(
+    def fake_save_on_anchor_canvas(
         payload: object,
         output_path: Path,
         *,
@@ -313,10 +344,7 @@ def test_update_figures_passes_resolved_font_family_to_asymmetric_padding_path(
         Image.new("RGB", (20, 10), "white").save(output_path)
 
     monkeypatch.setattr("pubify_ppt.figures._available_matplotlib_font_family", lambda font, *, source: font)
-    monkeypatch.setattr(
-        "pubify_ppt.figures._save_fig_with_asymmetric_tight_padding",
-        fake_save_with_asymmetric_padding,
-    )
+    monkeypatch.setattr("pubify_ppt.figures._save_fig_on_anchor_canvas", fake_save_on_anchor_canvas)
     presentation = load_presentation_definition(tmp_path, "demo")
 
     update_figures(presentation)
@@ -349,28 +377,27 @@ def test_update_figures_deletes_unreferenced_replaced_media(tmp_path: Path) -> N
     assert _duplicate_c_nv_pr_ids(presentation_root / "deck.pptx", slide_number=1) == []
 
 
-def test_update_figures_updates_existing_picture_geometry_when_aspect_changes(tmp_path: Path) -> None:
+def test_update_figures_keeps_existing_picture_geometry_when_export_content_aspect_changes(tmp_path: Path) -> None:
     init_workspace(tmp_path)
     init_presentation_by_id(tmp_path, "demo")
     presentation_root = tmp_path / "slides" / "demo"
     _write_padded_line_figure_module(presentation_root, left_padding=0.0)
-    _write_deck_with_figure_anchor(presentation_root, "{{fig:line}}")
+    _write_deck_with_figure_anchor(presentation_root, "{{fig:line}}", width=3.4)
     presentation = load_presentation_definition(tmp_path, "demo")
     (first_output,) = update_figures(presentation, figure_id="line")
     first_aspect = _png_aspect(first_output)
     first_geometry = _single_picture_geometry(presentation_root / "deck.pptx")
     before_second_update = _package_payloads(presentation_root / "deck.pptx")
 
-    _write_padded_line_figure_module(presentation_root, left_padding=1.0)
+    _write_padded_line_figure_module(presentation_root, left_padding=0.08)
     presentation = load_presentation_definition(tmp_path, "demo")
     (second_output,) = update_figures(presentation, figure_id="line")
 
     changed = _changed_package_entries(before_second_update, _package_payloads(presentation_root / "deck.pptx"))
-    assert changed == {"ppt/slides/slide1.xml", "ppt/media/image1.png"}
+    assert changed == {"ppt/media/image1.png"}
     second_geometry = _single_picture_geometry(presentation_root / "deck.pptx")
-    assert second_geometry != first_geometry
-    assert _aspect_ratio(second_geometry[2], second_geometry[3]) == pytest.approx(_png_aspect(second_output), rel=0.01)
-    assert _png_aspect(second_output) != pytest.approx(first_aspect, rel=0.01)
+    assert second_geometry == first_geometry
+    assert _png_aspect(second_output) == pytest.approx(first_aspect, rel=0.01)
 
 
 def test_update_figures_detaches_copied_managed_picture_anchors(tmp_path: Path) -> None:
@@ -526,7 +553,35 @@ def test_update_figures_saves_reused_axes_panel_with_tight_bbox(tmp_path: Path) 
 
     assert [path.name for path in outputs] == ["reused_axes.png"]
     with Image.open(outputs[0]) as image:
-        assert image.size != (600, 400)
+        assert image.size == (600, 400)
+
+
+def test_render_panel_png_expands_layout_to_fill_anchor_canvas(tmp_path: Path) -> None:
+    fig, ax = plt.subplots()
+    fig.subplots_adjust(left=0.38, right=0.62, bottom=0.38, top=0.62)
+    ax.plot([0, 1], [0, 1])
+    ax.set_xlabel("x")
+    ax.set_ylabel("y")
+    output = tmp_path / "expanded.png"
+
+    try:
+        _render_panel_png(
+            fig,
+            output,
+            width_emu=Inches(3),
+            height_emu=Inches(2),
+            dpi=200,
+            font_family=None,
+            preparation_options={},
+        )
+    finally:
+        plt.close(fig)
+
+    with Image.open(output) as image:
+        assert image.size == (600, 400)
+    bbox = _non_blank_bbox(output)
+    assert (bbox[2] - bbox[0]) / 600 > 0.9
+    assert (bbox[3] - bbox[1]) / 400 > 0.9
 
 
 def test_update_figures_accepts_symmetric_export_padding(tmp_path: Path) -> None:
@@ -567,8 +622,8 @@ def test_update_figures_accepts_symmetric_export_padding(tmp_path: Path) -> None
 
     by_name = {path.name: path for path in outputs}
     with Image.open(by_name["plain.png"]) as plain, Image.open(by_name["padded.png"]) as padded:
-        assert padded.width > plain.width
-        assert padded.height > plain.height
+        assert plain.size == (600, 400)
+        assert padded.size == (600, 400)
 
 
 def test_update_figures_applies_side_specific_export_padding(tmp_path: Path) -> None:
@@ -578,7 +633,7 @@ def test_update_figures_applies_side_specific_export_padding(tmp_path: Path) -> 
     _write_black_left_padded_figure_module(presentation_root, left_padding=0.0)
     deck = Presentation()
     slide = deck.slides.add_slide(deck.slide_layouts[6])
-    shape = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, Inches(0.5), Inches(0.5), Inches(3), Inches(2))
+    shape = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, Inches(0.5), Inches(0.5), Inches(3.2), Inches(2))
     _set_shape_alt_text(shape, "{{fig:left_padded}}")
     deck.save(presentation_root / "deck.pptx")
     presentation = load_presentation_definition(tmp_path, "demo")
@@ -823,10 +878,16 @@ def _set_shape_alt_text(shape: object, value: str) -> None:
     c_nv_pr.set("descr", value)
 
 
-def _write_deck_with_figure_anchor(presentation_root: Path, token: str) -> None:
+def _write_deck_with_figure_anchor(
+    presentation_root: Path,
+    token: str,
+    *,
+    width: float = 3.0,
+    height: float = 2.0,
+) -> None:
     deck = Presentation()
     slide = deck.slides.add_slide(deck.slide_layouts[6])
-    shape = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, Inches(0.5), Inches(0.5), Inches(3), Inches(2))
+    shape = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, Inches(0.5), Inches(0.5), Inches(width), Inches(height))
     _set_shape_alt_text(shape, token)
     deck.save(presentation_root / "deck.pptx")
 
@@ -861,7 +922,7 @@ def _write_colored_line_figure_module(presentation_root: Path, *, color: str) ->
                 f"    fig.patch.set_facecolor({color!r})",
                 "    ax.set_xlim(0, 1)",
                 "    ax.set_ylim(0, 1)",
-                "    ax.plot([0, 1], [0, 1], color='black')",
+                f"    ax.plot([0, 1], [0, 1], color={color!r})",
                 "    return fig",
             ]
         )
@@ -1060,6 +1121,20 @@ def _first_non_blank_column(path: Path) -> int:
                 if not _is_blank_export_padding_pixel(image.getpixel((x, y))):
                     return x
     raise AssertionError("image did not contain any non-blank pixels")
+
+
+def _non_blank_bbox(path: Path) -> tuple[int, int, int, int]:
+    with Image.open(path) as image:
+        xs = []
+        ys = []
+        for x in range(image.width):
+            for y in range(image.height):
+                if not _is_blank_export_padding_pixel(image.getpixel((x, y))):
+                    xs.append(x)
+                    ys.append(y)
+    if not xs:
+        raise AssertionError("image did not contain any non-blank pixels")
+    return min(xs), min(ys), max(xs) + 1, max(ys) + 1
 
 
 def _is_blank_export_padding_pixel(pixel: object) -> bool:

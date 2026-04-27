@@ -157,10 +157,13 @@ per-panel `metadata["style"]` overrides these defaults.
 Figure metadata can request export-only padding with `export_pad_inches` or
 side-specific `export_pad_left_inches`, `export_pad_right_inches`,
 `export_pad_top_inches`, and `export_pad_bottom_inches`. Padding values are
-non-negative inches. Symmetric padding is passed through to Matplotlib export as
-`pad_inches`. Side-specific padding expands Matplotlib's tight bounding box in
-inches before `savefig`, so labels and spines can be protected before the PNG is
-finalized instead of adding blank pixels after a clipped render.
+non-negative inches. `pubify-ppt` computes Matplotlib's tight bounding box, adds
+requested export padding, and saves through an anchor-sized bounding box whose
+physical dimensions equal the PowerPoint anchor at the configured DPI. This
+keeps generated text at the requested point size instead of letting PowerPoint
+scale a tight PNG up or down after export. If the padded tight content is too
+large for the anchor, update fails and tells the user to enlarge the anchor,
+reduce figure font size, or reduce export padding.
 
 For bootstrap authoring, a supported shape whose visible text is exactly one
 `{{fig:...}}` token is treated as an anchor. The update replaces the shape with
