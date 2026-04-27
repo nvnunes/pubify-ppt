@@ -243,6 +243,11 @@ original source deck and created backup are retained. Backup pruning runs only
 after a successful in-place write and keeps the newest `backup_retention`
 backups from `ppt.yaml`.
 
+Before any in-place backup or temporary replacement is created, the write layer
+checks for PowerPoint's sibling lock file named `~$<deck-name>`, such as
+`~$deck.pptx`. If it exists, the command fails and tells the user to close the
+deck in PowerPoint or use `--output`.
+
 `--output <path>` writes a generated deck copy and does not create a backup or
 mutate `deck.pptx`. Generated figure PNGs are still refreshed under
 `data/ppt-artifacts/figures/` when figure rendering is part of the command.

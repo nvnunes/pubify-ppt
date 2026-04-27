@@ -83,8 +83,9 @@ def _write_patched_source_deck(
     touched_slide_numbers: tuple[int, ...],
     media_replacements: tuple[MediaReplacement, ...],
 ) -> DeckWriteResult:
-    ensure_generated_artifact_paths(presentation)
     source_path = presentation.paths.deck_path
+    _raise_if_powerpoint_lock_exists(source_path)
+    ensure_generated_artifact_paths(presentation)
     backup_path = create_deck_backup(presentation)
     fd, temp_name = tempfile.mkstemp(
         prefix=f".{source_path.stem}-",
@@ -114,8 +115,9 @@ def _write_source_deck(
     presentation: PresentationDefinition,
     deck: PresentationObject,
 ) -> DeckWriteResult:
-    ensure_generated_artifact_paths(presentation)
     source_path = presentation.paths.deck_path
+    _raise_if_powerpoint_lock_exists(source_path)
+    ensure_generated_artifact_paths(presentation)
     backup_path = create_deck_backup(presentation)
     fd, temp_name = tempfile.mkstemp(
         prefix=f".{source_path.stem}-",
@@ -167,6 +169,15 @@ def _next_backup_path(presentation: PresentationDefinition) -> Path:
         candidate = presentation.paths.backups_root / f"deck-{timestamp}-{suffix}.pptx"
         suffix += 1
     return candidate
+
+
+def _raise_if_powerpoint_lock_exists(source_path: Path) -> None:
+    lock_path = source_path.with_name(f"~${source_path.name}")
+    if lock_path.exists():
+        raise RuntimeError(
+            f"PowerPoint lock file found for {source_path}. "
+            "Close the deck in PowerPoint before running an in-place update, or use --output."
+        )
 
 
 def _resolve_output_path(presentation: PresentationDefinition, output: Path | None) -> Path:

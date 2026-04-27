@@ -366,3 +366,9 @@ data/ppt-artifacts/backups/
 
 Backup retention is configured per presentation in `ppt.yaml` with
 `backup_retention`.
+
+If PowerPoint has the source deck open, it usually creates a sibling lock file
+such as `~$deck.pptx`. In-place writes fail before creating a backup or
+temporary replacement when that lock file exists. Close the source deck in
+PowerPoint before updating it in place, or use `--output` to write a generated
+copy.
