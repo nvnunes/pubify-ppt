@@ -9,7 +9,7 @@ from pptx.presentation import Presentation as PresentationObject
 import pubify_data
 
 from pubify_ppt.anchors import TableAnchor, discover_table_anchors_in_deck, set_shape_alt_text
-from pubify_ppt.backups import write_deck
+from pubify_ppt.backups import write_patched_deck
 from pubify_ppt.discovery import PresentationDefinition
 from pubify_ppt.runtime import check_presentation
 
@@ -67,7 +67,7 @@ def update_tables(
     """Compute selected tables and update matching PowerPoint table anchors."""
 
     result = update_tables_in_deck(presentation, table_id=table_id)
-    write_deck(presentation, result.deck)
+    write_patched_deck(presentation, result.deck, touched_slide_numbers=_touched_slides(result.replacements))
     return result.replacements
 
 
@@ -80,7 +80,12 @@ def update_tables_to_output(
     """Compute selected tables and write the updated deck through the output policy."""
 
     result = update_tables_in_deck(presentation, table_id=table_id)
-    write_deck(presentation, result.deck, output=output)
+    write_patched_deck(
+        presentation,
+        result.deck,
+        touched_slide_numbers=_touched_slides(result.replacements),
+        output=output,
+    )
     return result.replacements
 
 
@@ -92,7 +97,7 @@ def update_tables_in_deck(
 ) -> TableUpdateResult:
     """Compute selected tables and update native PowerPoint tables in an open deck."""
 
-    check_presentation(presentation)
+    check_presentation(presentation, allow_shared_figure_relationships=True)
     active_deck = deck if deck is not None else Presentation(presentation.paths.deck_path)
     anchors = discover_table_anchors_in_deck(active_deck)
     selected_ids = _selected_table_ids(presentation, table_id, anchors)
@@ -134,6 +139,10 @@ def _selected_table_ids(
     if table_id not in available_ids:
         raise KeyError(f"Unknown table '{table_id}'")
     return (table_id,)
+
+
+def _touched_slides(replacements: tuple[TableReplacement, ...]) -> tuple[int, ...]:
+    return tuple(sorted({replacement.slide_number for replacement in replacements}))
 
 
 def _run_selected_tables(

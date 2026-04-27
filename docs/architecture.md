@@ -152,6 +152,12 @@ Figure updates support simple placeholder shapes and previously generated
 pictures. Unsupported anchor features, such as grouping, rotation, or cropping,
 are validation errors rather than silently changed layout.
 
+Existing generated picture anchors are refreshed by replacing the already
+referenced PNG media part directly. This keeps the slide XML and slide
+relationship XML unchanged on normal figure reruns. Placeholder-to-picture
+bootstrap updates still need to change the slide XML because they create the
+initial PowerPoint picture object.
+
 ## Stat Updates
 
 `ppt <presentation-id> stat update` computes all declared stats and updates
@@ -205,11 +211,25 @@ source deck, `pubify-ppt` copies the current source deck to:
 data/ppt-artifacts/backups/deck-YYYYMMDD-HHMMSS.pptx
 ```
 
-Deck writes save to a temporary `.pptx` beside the source deck and then replace
-the source path. If the save fails after backup creation, the original source
-deck and created backup are retained. Backup pruning runs only after a
-successful in-place write and keeps the newest `backup_retention` backups from
-`ppt.yaml`.
+High-level update commands use a surgical OOXML package writer rather than
+saving the full deck through `python-pptx`. `python-pptx` is used for read-only
+discovery, geometry extraction, and in-memory mutation, then `pubify-ppt`
+patches only the changed slide XML, slide relationship XML, inserted or
+replaced media files, and `[Content_Types].xml` when a new media content type
+is required. Other package parts are copied unchanged. Unreferenced media files
+are removed only when no final package relationship targets them.
+
+For existing figure picture anchors, the changed package surface is normally
+only the referenced `ppt/media/*.png` payload. Stats and table cell updates must
+change their owning slide XML because their values are stored in that slide
+part; they should not create replacement PowerPoint objects when an existing
+managed text box or native table is compatible.
+
+In-place deck writes patch to a temporary `.pptx` beside the source deck and
+then replace the source path. If the patch fails after backup creation, the
+original source deck and created backup are retained. Backup pruning runs only
+after a successful in-place write and keeps the newest `backup_retention`
+backups from `ppt.yaml`.
 
 `--output <path>` writes a generated deck copy and does not create a backup or
 mutate `deck.pptx`. Generated figure PNGs are still refreshed under

@@ -6,6 +6,8 @@ import re
 
 from PIL import Image
 from pptx import Presentation
+from pptx.opc.constants import RELATIONSHIP_TYPE as RT
+from pptx.oxml.ns import qn
 from pptx.presentation import Presentation as PresentationObject
 from pptx.util import Emu
 import pubify_data
@@ -16,8 +18,9 @@ from pubify_ppt.anchors import (
     discover_figure_anchors_in_deck,
     set_shape_alt_text,
 )
-from pubify_ppt.backups import write_deck
+from pubify_ppt.backups import write_patched_deck
 from pubify_ppt.discovery import PresentationDefinition
+from pubify_ppt.ooxml import MediaReplacement
 from pubify_ppt.runtime import check_presentation, ensure_generated_artifact_paths
 
 
@@ -53,6 +56,8 @@ class FigureUpdateResult:
 
     deck: PresentationObject
     outputs: tuple[FigureOutput, ...]
+    touched_slide_numbers: tuple[int, ...]
+    media_replacements: tuple[MediaReplacement, ...]
 
 
 def update_figures(
@@ -63,7 +68,12 @@ def update_figures(
     """Render selected figures and replace their PowerPoint anchors in place."""
 
     result = update_figures_in_deck(presentation, figure_id=figure_id)
-    write_deck(presentation, result.deck)
+    write_patched_deck(
+        presentation,
+        result.deck,
+        touched_slide_numbers=result.touched_slide_numbers,
+        media_replacements=result.media_replacements,
+    )
     return tuple(output.path for output in result.outputs)
 
 
@@ -76,7 +86,13 @@ def update_figures_to_output(
     """Render selected figures and write the updated deck through the output policy."""
 
     result = update_figures_in_deck(presentation, figure_id=figure_id)
-    write_deck(presentation, result.deck, output=output)
+    write_patched_deck(
+        presentation,
+        result.deck,
+        touched_slide_numbers=result.touched_slide_numbers,
+        media_replacements=result.media_replacements,
+        output=output,
+    )
     return tuple(item.path for item in result.outputs)
 
 
@@ -89,35 +105,56 @@ def update_figures_in_deck(
     """Render selected figures and replace anchors in an open deck."""
 
     active_deck = deck if deck is not None else Presentation(presentation.paths.deck_path)
-    check_presentation(presentation)
+    check_presentation(presentation, allow_shared_figure_relationships=True)
     ensure_generated_artifact_paths(presentation)
     anchors = discover_figure_anchors_in_deck(active_deck)
     selected_ids = _selected_figure_ids(presentation, figure_id, anchors)
     if not selected_ids:
-        return FigureUpdateResult(active_deck, ())
+        return FigureUpdateResult(active_deck, (), (), ())
     rendered = _run_selected_figures(presentation, selected_ids)
-    outputs: list[FigureOutput] = []
-    _clear_selected_figure_pngs(presentation, selected_ids)
-
+    bindings: list[tuple[str, pubify_data.BaseFigureResult, int, FigureAnchor]] = []
     for current_id in selected_ids:
         figure_result = rendered[current_id]
-        panel_bindings = _bind_anchors(current_id, figure_result, anchors)
-        for panel_index, anchor in panel_bindings:
-            panel = figure_result.panels[panel_index - 1]
-            render_options = _figure_render_options(figure_result, panel)
-            output_path = _figure_output_path(presentation, current_id, len(figure_result.panels), panel_index)
-            _render_panel_png(
-                panel.payload,
-                output_path,
-                width_emu=anchor.shape.width,
-                height_emu=anchor.shape.height,
-                dpi=render_options.pop("dpi", presentation.config.defaults.dpi),
-                preparation_options=render_options,
-            )
-            _replace_anchor_with_picture(anchor, output_path)
-            outputs.append(FigureOutput(anchor.slide_number, anchor.shape_index, anchor.token, output_path))
+        for panel_index, anchor in _bind_anchors(current_id, figure_result, anchors):
+            bindings.append((current_id, figure_result, panel_index, anchor))
+    detach_keys = _shared_picture_detach_keys(
+        all_anchors=anchors,
+        selected_anchors=tuple(anchor for _current_id, _figure_result, _panel_index, anchor in bindings),
+    )
+    outputs: list[FigureOutput] = []
+    touched_slide_numbers: list[int] = []
+    media_replacements: list[MediaReplacement] = []
+    _clear_selected_figure_pngs(presentation, selected_ids)
 
-    return FigureUpdateResult(active_deck, tuple(outputs))
+    for current_id, figure_result, panel_index, anchor in bindings:
+        panel = figure_result.panels[panel_index - 1]
+        render_options = _figure_render_options(figure_result, panel)
+        output_path = _figure_output_path(presentation, current_id, len(figure_result.panels), panel_index)
+        _render_panel_png(
+            panel.payload,
+            output_path,
+            width_emu=anchor.shape.width,
+            height_emu=anchor.shape.height,
+            dpi=render_options.pop("dpi", presentation.config.defaults.dpi),
+            preparation_options=render_options,
+        )
+        media_replacement = _replace_anchor_with_picture(
+            anchor,
+            output_path,
+            force_distinct_media=_anchor_key(anchor) in detach_keys,
+        )
+        if media_replacement is None:
+            touched_slide_numbers.append(anchor.slide_number)
+        else:
+            media_replacements.append(media_replacement)
+        outputs.append(FigureOutput(anchor.slide_number, anchor.shape_index, anchor.token, output_path))
+
+    return FigureUpdateResult(
+        active_deck,
+        tuple(outputs),
+        tuple(sorted(set(touched_slide_numbers))),
+        tuple(media_replacements),
+    )
 
 
 def _selected_figure_ids(
@@ -177,6 +214,45 @@ def _bind_anchors(
     return tuple(bindings)
 
 
+def _shared_picture_detach_keys(
+    *,
+    all_anchors: tuple[FigureAnchor, ...],
+    selected_anchors: tuple[FigureAnchor, ...],
+) -> set[tuple[int, int]]:
+    selected_keys = {_anchor_key(anchor) for anchor in selected_anchors}
+    detach_keys: set[tuple[int, int]] = set()
+    for group in _shared_picture_relationship_groups(all_anchors):
+        group_keys = {_anchor_key(anchor) for anchor in group}
+        group_selected_keys = group_keys & selected_keys
+        if not group_selected_keys:
+            continue
+        if group_selected_keys == group_keys:
+            keep = min(group, key=lambda anchor: anchor.shape_index)
+            detach_keys.update(group_selected_keys - {_anchor_key(keep)})
+        else:
+            detach_keys.update(group_selected_keys)
+    return detach_keys
+
+
+def _shared_picture_relationship_groups(
+    anchors: tuple[FigureAnchor, ...],
+) -> tuple[tuple[FigureAnchor, ...], ...]:
+    groups: dict[tuple[int, str], list[FigureAnchor]] = {}
+    for anchor in anchors:
+        r_ids = _embedded_image_r_ids(anchor.shape._element)
+        if len(r_ids) == 1:
+            groups.setdefault((anchor.slide_number, r_ids[0]), []).append(anchor)
+    return tuple(
+        tuple(group)
+        for group in groups.values()
+        if len(group) > 1 and len({anchor.token for anchor in group}) > 1
+    )
+
+
+def _anchor_key(anchor: FigureAnchor) -> tuple[int, int]:
+    return (anchor.slide_number, anchor.shape_index)
+
+
 def _clear_selected_figure_pngs(
     presentation: PresentationDefinition,
     selected_ids: tuple[str, ...],
@@ -213,14 +289,17 @@ def _render_panel_png(
     preparation_options: dict[str, object] | None = None,
 ) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    with pubify_mpl.prepare_figure(
+    pubify_mpl.save_fig(
         payload,
-        text_usetex=False,
-        dpi=dpi,
+        output_path,
+        width=width_emu / EMU_PER_INCH,
+        height=height_emu / EMU_PER_INCH,
         **dict(preparation_options or {}),
-    ) as figure:
-        figure.set_size_inches(width_emu / EMU_PER_INCH, height_emu / EMU_PER_INCH, forward=True)
-        figure.savefig(output_path, format="png", dpi=dpi)
+        dpi=dpi,
+        text_usetex=False,
+        bbox_inches="tight",
+        pad_inches=0.0,
+    )
 
 
 def _figure_render_options(
@@ -239,7 +318,18 @@ def _figure_render_options(
     return options
 
 
-def _replace_anchor_with_picture(anchor: FigureAnchor, image_path: Path) -> None:
+def _replace_anchor_with_picture(
+    anchor: FigureAnchor,
+    image_path: Path,
+    *,
+    force_distinct_media: bool = False,
+) -> MediaReplacement | None:
+    if force_distinct_media and _detach_picture_media(anchor, image_path):
+        return None
+    media_replacement = _direct_picture_media_replacement(anchor, image_path)
+    if media_replacement is not None:
+        return media_replacement
+
     shape = anchor.shape
     slide = shape.part.slide
     left, top, width, height = shape.left, shape.top, shape.width, shape.height
@@ -251,6 +341,8 @@ def _replace_anchor_with_picture(anchor: FigureAnchor, image_path: Path) -> None
         height=height,
     )
     parent = shape._element.getparent()
+    for r_id in _embedded_image_r_ids(shape._element):
+        shape.part.drop_rel(r_id)
     parent.remove(shape._element)
     picture = slide.shapes.add_picture(
         str(image_path),
@@ -260,6 +352,44 @@ def _replace_anchor_with_picture(anchor: FigureAnchor, image_path: Path) -> None
         height=picture_height,
     )
     set_shape_alt_text(picture, anchor.token)
+    return None
+
+
+def _detach_picture_media(anchor: FigureAnchor, image_path: Path) -> bool:
+    r_ids = _embedded_image_r_ids(anchor.shape._element)
+    if len(r_ids) != 1:
+        return False
+    image_part, _reused_r_id = anchor.shape.part.get_or_add_image_part(str(image_path))
+    r_id = anchor.shape.part.rels._add_relationship(RT.IMAGE, image_part, is_external=False)
+    _set_embedded_image_r_id(anchor.shape._element, r_ids[0], r_id)
+    return True
+
+
+def _direct_picture_media_replacement(anchor: FigureAnchor, image_path: Path) -> MediaReplacement | None:
+    r_ids = _embedded_image_r_ids(anchor.shape._element)
+    if len(r_ids) != 1:
+        return None
+    relationship = anchor.shape.part.rels[r_ids[0]]
+    target_part = relationship.target_part
+    part_name = str(target_part.partname)
+    if target_part.content_type != "image/png" or not part_name.lower().endswith(".png"):
+        return None
+    return MediaReplacement(part_name=part_name, blob=image_path.read_bytes())
+
+
+def _embedded_image_r_ids(element: object) -> tuple[str, ...]:
+    return tuple(
+        r_id
+        for blip in element.xpath(".//a:blip")
+        if (r_id := blip.get(qn("r:embed"))) is not None
+    )
+
+
+def _set_embedded_image_r_id(element: object, old_r_id: str, new_r_id: str) -> None:
+    for blip in element.xpath(".//a:blip"):
+        if blip.get(qn("r:embed")) == old_r_id:
+            blip.set(qn("r:embed"), new_r_id)
+            return
 
 
 def _contained_geometry(

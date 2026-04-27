@@ -5,7 +5,7 @@ from pathlib import Path
 
 from pptx import Presentation
 
-from pubify_ppt.backups import write_deck
+from pubify_ppt.backups import write_patched_deck
 from pubify_ppt.discovery import PresentationDefinition
 from pubify_ppt.figures import FigureOutput, update_figures_in_deck
 from pubify_ppt.runtime import check_presentation, ensure_generated_artifact_paths
@@ -29,13 +29,28 @@ def update_presentation(
 ) -> PresentationUpdateResult:
     """Refresh all figures, stats, and tables, then write the deck once."""
 
-    check_presentation(presentation)
+    check_presentation(presentation, allow_shared_figure_relationships=True)
     ensure_generated_artifact_paths(presentation)
     deck = Presentation(presentation.paths.deck_path)
     figure_result = update_figures_in_deck(presentation, deck=deck)
     stat_result = update_stats_in_deck(presentation, deck=deck)
     table_result = update_tables_in_deck(presentation, deck=deck)
-    write_deck(presentation, deck, output=output)
+    touched_slide_numbers = tuple(
+        sorted(
+            {
+                item.slide_number
+                for item in (stat_result.replacements + table_result.replacements)
+            }
+        )
+    )
+    touched_slide_numbers = tuple(sorted(set(touched_slide_numbers + figure_result.touched_slide_numbers)))
+    write_patched_deck(
+        presentation,
+        deck,
+        touched_slide_numbers=touched_slide_numbers,
+        media_replacements=figure_result.media_replacements,
+        output=output,
+    )
     return PresentationUpdateResult(
         figure_outputs=figure_result.outputs,
         stat_replacements=stat_result.replacements,

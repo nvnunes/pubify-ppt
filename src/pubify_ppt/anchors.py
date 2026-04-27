@@ -6,8 +6,9 @@ from dataclasses import dataclass
 import re
 
 from pptx import Presentation
-from pptx.presentation import Presentation as PresentationObject
 from pptx.enum.shapes import MSO_SHAPE_TYPE
+from pptx.oxml.ns import qn
+from pptx.presentation import Presentation as PresentationObject
 
 
 FIGURE_TOKEN_RE = re.compile(r"^\{\{fig:([A-Za-z0-9_.-]+)(?::([1-9][0-9]*))?\}\}$")
@@ -114,6 +115,7 @@ def validate_deck_anchors(
     figure_ids: set[str],
     stat_ids: set[str],
     table_ids: set[str],
+    report_shared_figure_relationships: bool = True,
 ) -> list[str]:
     """Return static deck-anchor validation errors without mutating the deck."""
 
@@ -122,7 +124,8 @@ def validate_deck_anchors(
     figure_keys: dict[tuple[str, int | None], FigureAnchor] = {}
     table_keys: dict[str, TableAnchor] = {}
     for slide_number, slide in enumerate(deck.slides, start=1):
-        for shape in slide.shapes:
+        managed_picture_relationships: dict[str, list[str]] = {}
+        for shape_index, shape in enumerate(slide.shapes, start=1):
             alt_text = shape_alt_text(shape)
             alt_figure_token: str | None = None
             alt_table_token: str | None = None
@@ -130,6 +133,11 @@ def validate_deck_anchors(
                 stripped_alt_text = alt_text.strip()
                 if FIGURE_TOKEN_RE.fullmatch(stripped_alt_text) is not None:
                     alt_figure_token = stripped_alt_text
+                    _record_managed_picture_relationship(
+                        managed_picture_relationships,
+                        shape,
+                        token=stripped_alt_text,
+                    )
                 if TABLE_TOKEN_RE.fullmatch(stripped_alt_text) is not None:
                     alt_table_token = stripped_alt_text
                 _validate_alt_text(
@@ -155,6 +163,12 @@ def validate_deck_anchors(
                 alt_figure_token=alt_figure_token,
                 alt_table_token=alt_table_token,
             )
+        if report_shared_figure_relationships:
+            _validate_shared_managed_picture_relationships(
+                errors,
+                slide_number=slide_number,
+                relationships=managed_picture_relationships,
+            )
     return errors
 
 
@@ -174,6 +188,43 @@ def set_shape_alt_text(shape: object, value: str) -> None:
     if not matches:
         raise ValueError("Shape does not expose a PowerPoint non-visual properties node")
     matches[0].set("descr", value)
+
+
+def _record_managed_picture_relationship(
+    relationships: dict[str, list[str]],
+    shape: object,
+    *,
+    token: str,
+) -> None:
+    r_ids = _embedded_image_r_ids(shape._element)
+    if len(r_ids) != 1:
+        return
+    relationships.setdefault(r_ids[0], []).append(token)
+
+
+def _validate_shared_managed_picture_relationships(
+    errors: list[str],
+    *,
+    slide_number: int,
+    relationships: dict[str, list[str]],
+) -> None:
+    for r_id, tokens in sorted(relationships.items()):
+        unique_tokens = sorted(set(tokens))
+        if len(unique_tokens) <= 1:
+            continue
+        joined = ", ".join(unique_tokens)
+        errors.append(
+            f"Slide {slide_number}: managed figure picture anchors share image relationship {r_id}: {joined}; "
+            "rerun update to detach copied placeholders"
+        )
+
+
+def _embedded_image_r_ids(element: object) -> tuple[str, ...]:
+    return tuple(
+        r_id
+        for blip in element.xpath(".//a:blip")
+        if (r_id := blip.get(qn("r:embed"))) is not None
+    )
 
 
 def _validate_alt_text(

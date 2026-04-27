@@ -7,7 +7,7 @@ import sys
 
 from pubify_ppt.config import WORKSPACE_CONFIG_SECTION
 from pubify_ppt.config import find_workspace_root
-from pubify_ppt.backups import write_deck
+from pubify_ppt.backups import write_patched_deck
 from pubify_ppt.discovery import list_presentation_ids, load_presentation_definition
 from pubify_ppt.figures import FigureOutput
 from pubify_ppt.figures import update_figures_in_deck
@@ -147,13 +147,25 @@ def _run_presentation_command(parser: argparse.ArgumentParser, args: argparse.Na
             return 0
         if args.arg2 == "figure" and args.arg3 == "update" and args.arg4 is None and args.arg5 is None:
             result = update_figures_in_deck(presentation)
-            write_deck(presentation, result.deck, output=_output_path(args.output))
+            write_patched_deck(
+                presentation,
+                result.deck,
+                touched_slide_numbers=result.touched_slide_numbers,
+                media_replacements=result.media_replacements,
+                output=_output_path(args.output),
+            )
             for line in _replacement_lines(result.outputs, (), ()):
                 print(line)
             return 0
         if args.arg2 == "figure" and args.arg4 == "update" and args.arg3 is not None and args.arg5 is None:
             result = update_figures_in_deck(presentation, figure_id=args.arg3)
-            write_deck(presentation, result.deck, output=_output_path(args.output))
+            write_patched_deck(
+                presentation,
+                result.deck,
+                touched_slide_numbers=result.touched_slide_numbers,
+                media_replacements=result.media_replacements,
+                output=_output_path(args.output),
+            )
             for line in _replacement_lines(result.outputs, (), ()):
                 print(line)
             return 0

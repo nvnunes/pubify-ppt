@@ -10,6 +10,7 @@ import tempfile
 from pptx.presentation import Presentation as PresentationObject
 
 from pubify_ppt.discovery import PresentationDefinition
+from pubify_ppt.ooxml import MediaReplacement, patch_deck_package
 from pubify_ppt.runtime import ensure_generated_artifact_paths
 
 
@@ -37,6 +38,76 @@ def write_deck(
     output_path.parent.mkdir(parents=True, exist_ok=True)
     deck.save(output_path)
     return DeckWriteResult(deck_path=output_path)
+
+
+def write_patched_deck(
+    presentation: PresentationDefinition,
+    deck: PresentationObject,
+    *,
+    touched_slide_numbers: tuple[int, ...],
+    media_replacements: tuple[MediaReplacement, ...] = (),
+    output: Path | None = None,
+) -> DeckWriteResult:
+    """Write deck changes by patching only changed OOXML package parts."""
+
+    source_path = presentation.paths.deck_path
+    output_path = _resolve_output_path(presentation, output)
+    if not touched_slide_numbers and not media_replacements:
+        if output_path != source_path:
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source_path, output_path)
+        return DeckWriteResult(deck_path=output_path)
+    if output_path == source_path:
+        return _write_patched_source_deck(
+            presentation,
+            deck,
+            touched_slide_numbers=touched_slide_numbers,
+            media_replacements=media_replacements,
+        )
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    patch_deck_package(
+        source_path,
+        output_path,
+        deck,
+        touched_slide_numbers=touched_slide_numbers,
+        media_replacements=media_replacements,
+    )
+    return DeckWriteResult(deck_path=output_path)
+
+
+def _write_patched_source_deck(
+    presentation: PresentationDefinition,
+    deck: PresentationObject,
+    *,
+    touched_slide_numbers: tuple[int, ...],
+    media_replacements: tuple[MediaReplacement, ...],
+) -> DeckWriteResult:
+    ensure_generated_artifact_paths(presentation)
+    source_path = presentation.paths.deck_path
+    backup_path = create_deck_backup(presentation)
+    fd, temp_name = tempfile.mkstemp(
+        prefix=f".{source_path.stem}-",
+        suffix=source_path.suffix,
+        dir=source_path.parent,
+    )
+    os.close(fd)
+    temp_path = Path(temp_name)
+    try:
+        patch_deck_package(
+            source_path,
+            temp_path,
+            deck,
+            touched_slide_numbers=touched_slide_numbers,
+            media_replacements=media_replacements,
+        )
+        os.replace(temp_path, source_path)
+    except Exception:
+        if temp_path.exists():
+            temp_path.unlink()
+        raise
+    prune_deck_backups(presentation)
+    return DeckWriteResult(deck_path=source_path, backup_path=backup_path)
 
 
 def _write_source_deck(

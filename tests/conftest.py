@@ -4,6 +4,8 @@ import os
 from pathlib import Path
 import sys
 
+import pytest
+
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src"
@@ -16,3 +18,13 @@ os.environ.setdefault("MPLCONFIGDIR", str(MPLCONFIGDIR))
 for path in (SRC, SIBLING_PUBIFY_DATA, SIBLING_PUBIFY_MPL):
     if path.exists() and str(path) not in sys.path:
         sys.path.insert(0, str(path))
+
+
+@pytest.fixture(autouse=True)
+def close_matplotlib_figures():
+    yield
+    try:
+        import matplotlib.pyplot as plt
+    except Exception:
+        return
+    plt.close("all")

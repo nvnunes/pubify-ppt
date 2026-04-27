@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from PIL import Image
 import pytest
 from pptx import Presentation
 from pptx.enum.shapes import MSO_SHAPE
@@ -97,6 +98,52 @@ def test_validate_presentation_reports_malformed_visible_figure_anchor(tmp_path:
     errors = validate_presentation_definition(presentation)
 
     assert "Slide 1: malformed figure anchor token '{{fig:example:0}}'" in errors
+
+
+def test_validate_presentation_reports_shared_managed_figure_picture_relationship(tmp_path: Path) -> None:
+    init_workspace(tmp_path)
+    init_presentation_by_id(tmp_path, "demo")
+    presentation_root = tmp_path / "slides" / "demo"
+    (presentation_root / "figures.py").write_text(
+        "\n".join(
+            [
+                "import matplotlib.pyplot as plt",
+                "from pubify_data import figure",
+                "@figure",
+                "def plot_first(ctx):",
+                "    fig, ax = plt.subplots()",
+                "    ax.plot([1, 2], [1, 2])",
+                "    return fig",
+                "@figure",
+                "def plot_second(ctx):",
+                "    fig, ax = plt.subplots()",
+                "    ax.plot([1, 2], [2, 1])",
+                "    return fig",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    deck_path = presentation_root / "deck.pptx"
+    seed = presentation_root / "seed.png"
+    Image.new("RGB", (20, 20), "blue").save(seed)
+    deck = Presentation()
+    slide = deck.slides.add_slide(deck.slide_layouts[6])
+    first = slide.shapes.add_picture(str(seed), Inches(0.5), Inches(0.5), width=Inches(2))
+    second = slide.shapes.add_picture(str(seed), Inches(3), Inches(0.5), width=Inches(2))
+    _set_shape_alt_text(first, "{{fig:first}}")
+    _set_shape_alt_text(second, "{{fig:second}}")
+    deck.save(deck_path)
+    presentation = load_presentation_definition(tmp_path, "demo")
+
+    errors = validate_presentation_definition(presentation)
+
+    assert any(
+        "Slide 1: managed figure picture anchors share image relationship" in error
+        and "{{fig:first}}" in error
+        and "{{fig:second}}" in error
+        for error in errors
+    )
 
 
 def test_validate_presentation_reports_unknown_table_anchor(tmp_path: Path) -> None:

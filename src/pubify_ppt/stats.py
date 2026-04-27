@@ -9,7 +9,7 @@ from pptx.presentation import Presentation as PresentationObject
 import pubify_data
 
 from pubify_ppt.anchors import STAT_RENDERED_TOKEN_RE, STAT_TOKEN_RE, set_shape_alt_text, shape_alt_text, split_stat_reference
-from pubify_ppt.backups import write_deck
+from pubify_ppt.backups import write_patched_deck
 from pubify_ppt.discovery import PresentationDefinition
 from pubify_ppt.runtime import check_presentation
 
@@ -52,7 +52,7 @@ def update_stats(
     """Compute selected stats and replace matching inline PowerPoint tokens."""
 
     result = update_stats_in_deck(presentation, stat_id=stat_id)
-    write_deck(presentation, result.deck)
+    write_patched_deck(presentation, result.deck, touched_slide_numbers=_touched_slides(result.replacements))
     return result.replacements
 
 
@@ -65,7 +65,12 @@ def update_stats_to_output(
     """Compute selected stats and write the updated deck through the output policy."""
 
     result = update_stats_in_deck(presentation, stat_id=stat_id)
-    write_deck(presentation, result.deck, output=output)
+    write_patched_deck(
+        presentation,
+        result.deck,
+        touched_slide_numbers=_touched_slides(result.replacements),
+        output=output,
+    )
     return result.replacements
 
 
@@ -77,7 +82,7 @@ def update_stats_in_deck(
 ) -> StatUpdateResult:
     """Compute selected stats and replace matching tokens in an open deck."""
 
-    check_presentation(presentation)
+    check_presentation(presentation, allow_shared_figure_relationships=True)
     selected_ids = _selected_stat_ids(presentation, stat_id)
     active_deck = deck if deck is not None else Presentation(presentation.paths.deck_path)
     if not selected_ids:
@@ -123,6 +128,10 @@ def _selected_stat_ids(presentation: PresentationDefinition, stat_id: str | None
     if stat_id not in available_ids:
         raise KeyError(f"Unknown stat '{stat_id}'")
     return (stat_id,)
+
+
+def _touched_slides(replacements: tuple[StatReplacement, ...]) -> tuple[int, ...]:
+    return tuple(sorted({replacement.slide_number for replacement in replacements}))
 
 
 def _run_selected_stats(

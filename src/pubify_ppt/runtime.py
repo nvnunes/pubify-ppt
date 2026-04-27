@@ -17,16 +17,27 @@ def ensure_generated_artifact_paths(presentation: PresentationDefinition) -> Non
     presentation.paths.backups_root.mkdir(parents=True, exist_ok=True)
 
 
-def check_presentation(presentation: PresentationDefinition) -> None:
+def check_presentation(
+    presentation: PresentationDefinition,
+    *,
+    allow_shared_figure_relationships: bool = False,
+) -> None:
     """Raise ``ValueError`` if the presentation fails static validation."""
 
-    errors = validate_presentation_definition(presentation)
+    errors = validate_presentation_definition(
+        presentation,
+        allow_shared_figure_relationships=allow_shared_figure_relationships,
+    )
     if errors:
         joined = "\n".join(f"- {message}" for message in errors)
         raise ValueError(f"Presentation '{presentation.presentation_id}' failed validation:\n{joined}")
 
 
-def validate_presentation_definition(presentation: PresentationDefinition) -> list[str]:
+def validate_presentation_definition(
+    presentation: PresentationDefinition,
+    *,
+    allow_shared_figure_relationships: bool = False,
+) -> list[str]:
     """Return static validation errors without running loaders, figures, or stats."""
 
     errors: list[str] = []
@@ -59,6 +70,7 @@ def validate_presentation_definition(presentation: PresentationDefinition) -> li
                 figure_ids=set(presentation.figures),
                 stat_ids=set(presentation.stats),
                 table_ids=set(presentation.tables),
+                report_shared_figure_relationships=not allow_shared_figure_relationships,
             )
         )
 
