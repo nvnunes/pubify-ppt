@@ -44,7 +44,7 @@ def test_cli_init_workspace_creates_pubify_yaml(
         "  presentations_root: slides\n"
     )
     assert (tmp_path / "slides").is_dir()
-    assert (tmp_path / "slides" / "AGENTS.md").is_file()
+    assert not (tmp_path / "slides" / "AGENTS.md").exists()
     assert capsys.readouterr().out.strip() == str(tmp_path)
 
 

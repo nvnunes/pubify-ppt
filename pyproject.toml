@@ -42,8 +42,5 @@ package-dir = {"" = "src"}
 [tool.setuptools.packages.find]
 where = ["src"]
 
-[tool.setuptools.package-data]
-"pubify_ppt.assets.init" = ["*.md", "*.py"]
-
 [tool.setuptools.exclude-package-data]
 "*" = [".DS_Store"]

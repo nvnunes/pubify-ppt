@@ -18,7 +18,6 @@ Package-owned behavior:
 - inline stat replacement
 - native table replacement
 - deck backups and generated PowerPoint artifact lifecycle
-- shared presentations-root `AGENTS.md` scaffold
 
 Upstream-owned behavior:
 
@@ -93,16 +92,14 @@ opened `.pptx` does not depend on the PNG files being present.
 
 `ppt init` creates `pubify.yaml` when missing, appends a `pubify-ppt` section
 when the file already exists without one, creates the configured
-`presentations_root`, and writes a shared presentations-root `AGENTS.md` when it
-is missing.
+`presentations_root`.
 
 `ppt init <presentation-id>` creates the presentation folder, preserves an
 existing `data/` directory or symlink, creates `data/ppt-artifacts/figures/`
 and `data/ppt-artifacts/backups/`, and writes starter `ppt.yaml`, `figures.py`,
 `example.csv`, and `deck.pptx` only when those files are missing. The starter
 entrypoint defines one example loader, figure, stat, and table; the starter
-deck contains matching figure, stat, and table anchors. Presentation init also
-backfills the shared presentations-root `AGENTS.md` when it is missing.
+deck contains matching figure, stat, and table anchors.
 
 ## Discovery And Checks
 
