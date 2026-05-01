@@ -1,8 +1,5 @@
 # AGENTS.md
 
-## Astro-Agents Bootstrap
-- Use `astro-agents` for reusable authoring, review, and routing guidance in this repo.
-
 ## Scope
 - Documentation surface profile: public-python.
 
@@ -12,15 +9,21 @@
 - Follow `docs/testing.md` for canonical verification commands and completion expectations.
 - Follow `docs/development.md` for local `./.conda` usage, docs workflow, and git hook activation.
 
-## Shared Guidance
-- Use `astro-agents/guidance/agent-surface.md` for shared agent-surface guidance.
-- Use `astro-agents/guidance/public-python-projects.md` for shared public Python repo guidance.
-- Use `astro-agents/guidance/python-development.md` for shared Python architecture, coding-policy, and development-workflow guidance.
+## Shared Validation
+- Use `$agent-surface-review` for shared agent-surface review.
+- Use `$documentation-surface-review` for documentation-surface review with the `public-python` profile.
+- Use `$code-quality-review` for source-code quality review.
 
-## Authoring Requirements
-- For Python code, follow `astro-agents/authoring/code/python.md`.
-- For repo docs such as `docs/architecture.md`, `docs/testing.md`, `docs/development.md`, and similar long-lived repo documents, follow `astro-agents/authoring/writing/repo-docs.md`.
-- For `README.md`, follow `astro-agents/authoring/writing/readme-md.md` in addition to `astro-agents/authoring/writing/repo-docs.md`.
+## Skill Requirements
+- For Python code, use `$python-code-writing`.
+- For project docs such as `docs/architecture.md`, `docs/testing.md`, `docs/development.md`, and similar long-lived project documents, use `$project-docs-writing`.
+- For `README.md`, use `$readme-writing`.
+- For plan documents or phased execution docs when they are created or revised, use `$plan-writing`.
+
+## Astro-Agents Integration
+- `astro-agents` owns the shared `$pubify-authoring` skill used by agents working on downstream pubify publication and presentation workflows.
+- When this project changes user-facing `pubify-ppt` behavior, update the corresponding `astro-agents` skill references: `skills/pubify-authoring/references/pubify-ppt.md`, `skills/pubify-authoring/references/pubify-ppt-figures.md`, and shared references when the change affects `figures.py`, data loaders, source reuse, or figure export behavior.
+- Examples that require an `astro-agents` update include CLI changes, `ppt.yaml` schema changes, deck/anchor/token behavior, generated artifact behavior, `FigureResult` or `panel(...)` API changes, data/source reuse changes, validation behavior, and authoring workflow changes.
 
 ## Working Rules
 - Use the local `./.conda` environment and the workflow in `docs/development.md` for Python commands, test runs, and docs builds unless a task explicitly requires something else.

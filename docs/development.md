@@ -4,12 +4,10 @@ This document covers local setup and daily workflow. For repo boundaries and
 package ownership, use `architecture.md`. For canonical verification commands
 and completion expectations, use `testing.md`.
 
-## Shared Guidance
+## Shared Skills
 
-This repo adopts the shared guidance in:
-
-- `astro-agents/guidance/public-python-projects.md`
-- `astro-agents/guidance/python-development.md`
+For Python code changes, use `$python-code-writing` alongside this project's
+local environment and workflow rules.
 
 Repo-local environment setup, toolchain choices, and daily commands in this
 document remain the source of truth for this repo.
