@@ -121,8 +121,6 @@ def validate_deck_anchors(
 
     deck = Presentation(deck_path)
     errors: list[str] = []
-    figure_keys: dict[tuple[str, int | None], FigureAnchor] = {}
-    table_keys: dict[str, TableAnchor] = {}
     for slide_number, slide in enumerate(deck.slides, start=1):
         managed_picture_relationships: dict[str, list[str]] = {}
         for shape_index, shape in enumerate(slide.shapes, start=1):
@@ -142,8 +140,6 @@ def validate_deck_anchors(
                     alt_table_token = stripped_alt_text
                 _validate_alt_text(
                     errors,
-                    figure_keys,
-                    table_keys,
                     shape,
                     slide_number=slide_number,
                     alt_text=stripped_alt_text,
@@ -153,8 +149,6 @@ def validate_deck_anchors(
                 )
             _validate_text_shape(
                 errors,
-                figure_keys,
-                table_keys,
                 shape,
                 slide_number=slide_number,
                 figure_ids=figure_ids,
@@ -229,8 +223,6 @@ def _embedded_image_r_ids(element: object) -> tuple[str, ...]:
 
 def _validate_alt_text(
     errors: list[str],
-    figure_keys: dict[tuple[str, int | None], FigureAnchor],
-    table_keys: dict[str, TableAnchor],
     shape: object,
     *,
     slide_number: int,
@@ -248,7 +240,6 @@ def _validate_alt_text(
     if managed_match.group(1).startswith("table:"):
         _validate_table_anchor_token(
             errors,
-            table_keys,
             shape,
             slide_number=slide_number,
             token=alt_text,
@@ -263,7 +254,6 @@ def _validate_alt_text(
 
     _validate_figure_anchor_token(
         errors,
-        figure_keys,
         shape,
         slide_number=slide_number,
         token=figure_match.group(0),
@@ -291,8 +281,6 @@ def _validate_stat_alt_text(
 
 def _validate_text_shape(
     errors: list[str],
-    figure_keys: dict[tuple[str, int | None], FigureAnchor],
-    table_keys: dict[str, TableAnchor],
     shape: object,
     *,
     slide_number: int,
@@ -311,7 +299,6 @@ def _validate_text_shape(
         if alt_figure_token is None:
             _validate_figure_anchor_token(
                 errors,
-                figure_keys,
                 shape,
                 slide_number=slide_number,
                 token=visible_figure_token,
@@ -327,7 +314,6 @@ def _validate_text_shape(
         if alt_table_token is None:
             _validate_table_anchor_token(
                 errors,
-                table_keys,
                 shape,
                 slide_number=slide_number,
                 token=visible_table_token,
@@ -369,7 +355,6 @@ def _validate_text_shape(
 
 def _validate_figure_anchor_token(
     errors: list[str],
-    figure_keys: dict[tuple[str, int | None], FigureAnchor],
     shape: object,
     *,
     slide_number: int,
@@ -381,15 +366,8 @@ def _validate_figure_anchor_token(
         errors.append(f"Slide {slide_number}: malformed figure anchor token {token!r}")
         return
     figure_id = match.group(1)
-    panel_number = int(match.group(2)) if match.group(2) is not None else None
     if figure_id not in figure_ids:
         errors.append(f"Slide {slide_number}: unknown figure anchor {token}")
-
-    key = (figure_id, panel_number)
-    if key in figure_keys:
-        errors.append(f"Slide {slide_number}: duplicate figure anchor {token}")
-    else:
-        figure_keys[key] = FigureAnchor(slide_number, 0, figure_id, panel_number, token, shape)
 
     unsupported = _unsupported_figure_anchor_features(shape)
     if unsupported:
@@ -398,7 +376,6 @@ def _validate_figure_anchor_token(
 
 def _validate_table_anchor_token(
     errors: list[str],
-    table_keys: dict[str, TableAnchor],
     shape: object,
     *,
     slide_number: int,
@@ -412,11 +389,6 @@ def _validate_table_anchor_token(
     table_id = match.group(1)
     if table_id not in table_ids:
         errors.append(f"Slide {slide_number}: unknown table anchor {token}")
-
-    if table_id in table_keys:
-        errors.append(f"Slide {slide_number}: duplicate table anchor {token}")
-    else:
-        table_keys[table_id] = TableAnchor(slide_number, 0, table_id, token, shape)
 
     unsupported = _unsupported_table_anchor_features(shape)
     if unsupported:

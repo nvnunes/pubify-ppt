@@ -57,6 +57,24 @@ The `.pptx` file is both source and layout editor. Resize placeholders or
 previously generated pictures in PowerPoint, then rerun `ppt <presentation-id>
 update` to regenerate content at the current deck geometry.
 
+## Adding Anchors To Slides
+
+Use `addto` to add a centered managed anchor to an existing slide:
+
+```bash
+ppt demo figure example addto 1
+ppt demo figure comparison:2 addto 1
+ppt demo stat example.count addto 1
+ppt demo table example addto 1
+```
+
+Slide numbers are one-based. Figure references accept either `<figure_id>` or
+`<figure_id>:<panel_number>`. Figure, stat, and table `addto` commands execute
+the targeted update path immediately. If a multi-panel figure omits the panel
+number, `addto` creates a panel-1 anchor. Table anchors are created through Alt
+Text only; stat anchors are first inserted as visible tokens and then rendered
+to visible values with managed Alt Text.
+
 ## Authoring Figures
 
 Figure anchors use PowerPoint alt text as their persistent managed state:
@@ -66,9 +84,11 @@ Figure anchors use PowerPoint alt text as their persistent managed state:
 {{fig:<figure_id>:<panel_number>}}
 ```
 
-Use `{{fig:<figure_id>}}` for single-panel figures. Multi-panel figures require
+Use `{{fig:<figure_id>}}` for single-panel figures. Multi-panel figures can use
 one explicit anchor per panel, using one-based panel numbers such as
-`{{fig:comparison:1}}` and `{{fig:comparison:2}}`.
+`{{fig:comparison:1}}` and `{{fig:comparison:2}}`. `figure addto` resolves a
+scalar multi-panel figure reference to an explicit panel-1 anchor before
+rendering.
 
 For first-time bootstrapping, you can also draw a supported shape and set its
 visible text to exactly one figure token, with no surrounding text:
@@ -337,9 +357,9 @@ Run:
 ppt demo check
 ```
 
-This catches missing data files, unknown anchors, duplicate anchors, malformed
-tokens, unsupported figure/table anchor shapes, and ambiguous stat-managed text
-boxes before an update writes the deck.
+This catches missing data files, unknown anchors, malformed tokens, unsupported
+figure/table anchor shapes, and ambiguous stat-managed text boxes before an
+update writes the deck.
 
 ## Updating A Deck
 
@@ -349,12 +369,16 @@ Use default in-place updates during normal iteration:
 ppt demo update
 ```
 
-Targeted updates are available when iterating on one surface:
+Targeted updates and anchor placement are available when iterating on one
+surface:
 
 ```bash
 ppt demo figure <figure-id> update
+ppt demo figure <figure-id>:<panel-number> addto <slide-number>
 ppt demo stat <stat-id> update
+ppt demo stat <stat-id> addto <slide-number>
 ppt demo table <table-id> update
+ppt demo table <table-id> addto <slide-number>
 ```
 
 Update output reports the slide and replacement that changed:

@@ -105,24 +105,29 @@ ppt init <presentation-id>
 ppt <presentation-id> check
 ppt <presentation-id> data list
 ppt <presentation-id> figure list
+ppt <presentation-id> figure <figure-id> addto <slide-number>
+ppt <presentation-id> figure <figure-id>:<panel-number> addto <slide-number>
 ppt <presentation-id> figure update
 ppt <presentation-id> figure <figure-id> update
 ppt <presentation-id> stat list
+ppt <presentation-id> stat <stat-id> addto <slide-number>
 ppt <presentation-id> stat update
 ppt <presentation-id> stat <stat-id> update
 ppt <presentation-id> table list
+ppt <presentation-id> table <table-id> addto <slide-number>
 ppt <presentation-id> table update
 ppt <presentation-id> table <table-id> update
 ppt <presentation-id> update
 ```
 
-Write commands accept `--output <path>` to write a generated copy instead of
-mutating `deck.pptx`.
+Update commands accept `--output <path>` to write a generated copy instead of
+mutating `deck.pptx`. `addto` commands mutate the editable source deck.
 
 ## Authoring Summary
 
 - Figure anchors live in PowerPoint alt text, for example
-  `{{fig:example}}`.
+  `{{fig:example}}`. Use `ppt demo figure example addto 1` to add and render a
+  centered figure on slide 1.
 - To bootstrap a figure, draw a supported shape and set its visible text
   exactly to `{{fig:example}}`; update will replace it with a picture and carry
   the token forward in Alt Text.
@@ -139,8 +144,9 @@ mutating `deck.pptx`.
   font for generated figures; unavailable fonts are ignored to avoid Matplotlib
   `findfont` noise. Set `defaults.figure_*_fontsize_pt` values to control
   presentation-level generated figure text sizes.
-- Multi-panel figures use one explicit anchor per panel, for example
-  `{{fig:comparison:1}}`.
+- Multi-panel figures can use one explicit anchor per panel, for example
+  `{{fig:comparison:1}}`. `ppt demo figure comparison addto 1` executes the
+  figure and creates a panel-1 anchor when the figure returns multiple panels.
 - Reused paper outputs are declared in `ppt.yaml` under `sources:` and exposed
   through presentation-local wrapper functions in `figures.py`; PowerPoint
   anchors should reference only local IDs.
@@ -151,8 +157,8 @@ mutating `deck.pptx`.
   `{{stat:example.count=<previous_value>}}` in Alt Text so later updates can
   safely replace the previous visible value.
 - Table anchors use `{{table:example}}` in a placeholder's visible text or Alt
-  Text. Update replaces the placeholder with a native PowerPoint table and
-  persists the token in Alt Text.
+  Text; `ppt demo table example addto 1` writes the token to Alt Text, then
+  renders a native PowerPoint table and persists the token in Alt Text.
 - Table headings can come from `TableResult(..., metadata={"columns": (...)})`
   when a table is first created. Later updates preserve the PowerPoint heading
   row and require the table to keep the same total row count and column count.

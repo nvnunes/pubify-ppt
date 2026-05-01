@@ -5,8 +5,10 @@ from zipfile import ZipFile
 
 import pytest
 from pptx import Presentation
+from pptx.enum.shapes import MSO_SHAPE_TYPE
 from pptx.util import Inches
 
+from pubify_ppt.anchors import shape_alt_text
 from pubify_ppt.cli import build_parser, main
 
 def test_cli_help_includes_planned_commands(capsys: pytest.CaptureFixture[str]) -> None:
@@ -18,7 +20,9 @@ def test_cli_help_includes_planned_commands(capsys: pytest.CaptureFixture[str]) 
     assert exc_info.value.code == 0
     output = capsys.readouterr().out
     assert "ppt init <presentation-id>" in output
+    assert "ppt <presentation-id> figure <figure-id> addto <slide-number>" in output
     assert "ppt <presentation-id> figure <figure-id> update [--output <path>]" in output
+    assert "ppt <presentation-id> table <table-id> addto <slide-number>" in output
     assert "ppt <presentation-id> update [--output <path>]" in output
 
 
@@ -210,6 +214,116 @@ def test_cli_full_update_writes_figures_stats_and_tables(
         "Slide 1: {{stat:example.count}} = 3",
         "Slide 1: {{table:example}} = 4 rows x 2 columns",
     ]
+
+
+def test_cli_addto_inserts_anchors_on_existing_slide(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    main(["init"])
+    main(["init", "demo"])
+    presentation_root = tmp_path / "slides" / "demo"
+    deck = Presentation()
+    deck.slides.add_slide(deck.slide_layouts[6])
+    deck.save(presentation_root / "deck.pptx")
+    capsys.readouterr()
+
+    assert main(["demo", "figure", "example:1", "addto", "1"]) == 0
+    assert main(["demo", "stat", "example.count", "addto", "1"]) == 0
+    assert main(["demo", "table", "example", "addto", "1"]) == 0
+
+    assert capsys.readouterr().out.splitlines() == [
+        "Slide 1: {{fig:example:1}} = example.png",
+        "Slide 1: {{stat:example.count}} = 3",
+        "Slide 1: {{table:example}} = 4 rows x 2 columns",
+    ]
+    deck = Presentation(presentation_root / "deck.pptx")
+    shapes = list(deck.slides[0].shapes)
+    assert "{{fig:example:1}}" in [shape_alt_text(shape) for shape in shapes]
+    assert any(shape.shape_type == MSO_SHAPE_TYPE.PICTURE for shape in shapes)
+    assert "{{table:example}}" in [shape_alt_text(shape) for shape in shapes]
+    assert "{{stat:example.count=3}}" in [shape_alt_text(shape) for shape in shapes]
+    assert "3" in "\n".join(getattr(shape, "text", "") for shape in shapes)
+    assert any(getattr(shape, "has_table", False) for shape in shapes)
+    assert (presentation_root / "data" / "ppt-artifacts" / "figures" / "example.png").is_file()
+
+
+def test_cli_figure_addto_infers_first_panel_for_multi_panel_figure(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    main(["init"])
+    main(["init", "demo"])
+    presentation_root = tmp_path / "slides" / "demo"
+    (presentation_root / "figures.py").write_text(
+        "\n".join(
+            [
+                "import matplotlib.pyplot as plt",
+                "from pubify_data import figure",
+                "@figure",
+                "def plot_pair(ctx):",
+                "    fig1, ax1 = plt.subplots()",
+                "    ax1.plot([1, 2], [1, 2])",
+                "    fig2, ax2 = plt.subplots()",
+                "    ax2.plot([1, 2], [2, 1])",
+                "    return [fig1, fig2]",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    deck = Presentation()
+    deck.slides.add_slide(deck.slide_layouts[6])
+    deck.save(presentation_root / "deck.pptx")
+    capsys.readouterr()
+
+    assert main(["demo", "figure", "pair", "addto", "1"]) == 0
+
+    assert capsys.readouterr().out.splitlines() == ["Slide 1: {{fig:pair:1}} = pair_1.png"]
+    deck = Presentation(presentation_root / "deck.pptx")
+    shapes = list(deck.slides[0].shapes)
+    assert "{{fig:pair:1}}" in [shape_alt_text(shape) for shape in shapes]
+    assert any(shape.shape_type == MSO_SHAPE_TYPE.PICTURE for shape in shapes)
+    assert (presentation_root / "data" / "ppt-artifacts" / "figures" / "pair_1.png").is_file()
+
+
+def test_cli_table_addto_updates_existing_and_new_table_anchors(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    main(["init"])
+    main(["init", "demo"])
+    capsys.readouterr()
+
+    assert main(["demo", "table", "example", "addto", "1"]) == 0
+
+    assert capsys.readouterr().out.splitlines() == [
+        "Slide 1: {{table:example}} [1/2] = 4 rows x 2 columns",
+        "Slide 1: {{table:example}} [2/2] = 4 rows x 2 columns",
+    ]
+    deck = Presentation(tmp_path / "slides" / "demo" / "deck.pptx")
+    assert sum(1 for shape in deck.slides[0].shapes if getattr(shape, "has_table", False)) == 2
+
+
+def test_cli_addto_rejects_missing_slide(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    main(["init"])
+    main(["init", "demo"])
+    capsys.readouterr()
+
+    assert main(["demo", "figure", "example", "addto", "2"]) == 1
+
+    assert "Error: Slide number must be between 1 and 1: 2" in capsys.readouterr().err
 
 
 def test_cli_full_update_reports_replacements_in_slide_order(

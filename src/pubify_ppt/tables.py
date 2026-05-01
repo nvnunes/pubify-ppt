@@ -106,24 +106,27 @@ def update_tables_in_deck(
 
     rendered = _run_selected_tables(presentation, selected_ids)
     replacements: list[TableReplacement] = []
-    anchors_by_id = {anchor.table_id: anchor for anchor in anchors}
+    anchors_by_id: dict[str, list[TableAnchor]] = {}
+    for anchor in anchors:
+        anchors_by_id.setdefault(anchor.table_id, []).append(anchor)
 
     for current_id in selected_ids:
-        anchor = anchors_by_id.get(current_id)
-        if anchor is None:
-            raise ValueError(f"Table '{current_id}' requires exactly one anchor")
+        current_anchors = anchors_by_id.get(current_id, [])
+        if not current_anchors:
+            raise ValueError(f"Table '{current_id}' requires at least one anchor")
         table = rendered[current_id]
-        _apply_table(anchor, table)
-        replacements.append(
-            TableReplacement(
-                slide_number=anchor.slide_number,
-                shape_index=anchor.shape_index,
-                table_id=current_id,
-                token=anchor.token,
-                rows=table.row_count,
-                columns=table.column_count,
+        for anchor in current_anchors:
+            _apply_table(anchor, table)
+            replacements.append(
+                TableReplacement(
+                    slide_number=anchor.slide_number,
+                    shape_index=anchor.shape_index,
+                    table_id=current_id,
+                    token=anchor.token,
+                    rows=table.row_count,
+                    columns=table.column_count,
+                )
             )
-        )
 
     return TableUpdateResult(active_deck, tuple(replacements))
 

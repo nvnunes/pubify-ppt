@@ -146,6 +146,7 @@ def update_figures_in_deck(
     *,
     figure_id: str | None = None,
     deck: PresentationObject | None = None,
+    _rendered_figures: Mapping[str, pubify_data.BaseFigureResult] | None = None,
 ) -> "FigureUpdateResult":
     """Render selected figures and replace anchors in an open deck."""
 
@@ -156,7 +157,7 @@ def update_figures_in_deck(
     selected_ids = _selected_figure_ids(presentation, figure_id, anchors)
     if not selected_ids:
         return FigureUpdateResult(active_deck, (), (), ())
-    rendered = _run_selected_figures(presentation, selected_ids)
+    rendered = _selected_rendered_figures(presentation, selected_ids, rendered_figures=_rendered_figures)
     font_family = _resolved_figure_font_family(presentation)
     bindings: list[tuple[str, pubify_data.BaseFigureResult, int, FigureAnchor]] = []
     for current_id in selected_ids:
@@ -229,6 +230,17 @@ def _run_selected_figures(
     return rendered
 
 
+def _selected_rendered_figures(
+    presentation: PresentationDefinition,
+    selected_ids: tuple[str, ...],
+    *,
+    rendered_figures: Mapping[str, pubify_data.BaseFigureResult] | None,
+) -> dict[str, pubify_data.BaseFigureResult]:
+    if rendered_figures is None:
+        return _run_selected_figures(presentation, selected_ids)
+    return {current_id: rendered_figures[current_id] for current_id in selected_ids}
+
+
 def _bind_anchors(
     figure_id: str,
     figure_result: pubify_data.BaseFigureResult,
@@ -243,19 +255,21 @@ def _bind_anchors(
         if extra_anchors:
             tokens = ", ".join(anchor.token for anchor in extra_anchors)
             raise ValueError(f"Figure '{figure_id}' has extra panel anchors for a single-panel result: {tokens}")
-        if len(scalar_anchors) + len(panel_anchors) != 1:
-            raise ValueError(f"Figure '{figure_id}' requires exactly one anchor")
-        return ((1, (scalar_anchors or panel_anchors)[0]),)
+        bindings = tuple((1, anchor) for anchor in scalar_anchors + panel_anchors)
+        if not bindings:
+            raise ValueError(f"Figure '{figure_id}' requires at least one anchor")
+        return bindings
 
     bindings: list[tuple[int, FigureAnchor]] = []
-    by_panel = {anchor.panel_number: anchor for anchor in figure_anchors if anchor.panel_number is not None}
-    if any(anchor.panel_number is None for anchor in figure_anchors):
-        raise ValueError(f"Figure '{figure_id}' returned multiple panels but has a scalar anchor")
+    by_panel: dict[int, list[FigureAnchor]] = {}
+    for anchor in figure_anchors:
+        by_panel.setdefault(anchor.panel_number or 1, []).append(anchor)
     extra_panels = sorted(panel for panel in by_panel if panel is not None and panel > panel_count)
     if extra_panels:
         raise ValueError(f"Figure '{figure_id}' has extra panel anchors: {extra_panels}")
     for panel_index in sorted(panel for panel in by_panel if panel is not None):
-        bindings.append((panel_index, by_panel[panel_index]))
+        for anchor in by_panel[panel_index]:
+            bindings.append((panel_index, anchor))
     if not bindings:
         raise ValueError(f"Figure '{figure_id}' requires at least one panel anchor")
     return tuple(bindings)

@@ -100,6 +100,27 @@ def test_validate_presentation_reports_malformed_visible_figure_anchor(tmp_path:
     assert "Slide 1: malformed figure anchor token '{{fig:example:0}}'" in errors
 
 
+def test_validate_presentation_allows_duplicate_figure_anchors(tmp_path: Path) -> None:
+    init_workspace(tmp_path)
+    init_presentation_by_id(tmp_path, "demo")
+    deck_path = tmp_path / "slides" / "demo" / "deck.pptx"
+    deck = Presentation(deck_path)
+    shape = deck.slides[0].shapes.add_shape(
+        MSO_SHAPE.RECTANGLE,
+        Inches(0.5),
+        Inches(0.5),
+        Inches(1.0),
+        Inches(1.0),
+    )
+    _set_shape_alt_text(shape, "{{fig:example}}")
+    deck.save(deck_path)
+    presentation = load_presentation_definition(tmp_path, "demo")
+
+    errors = validate_presentation_definition(presentation)
+
+    assert "Slide 1: duplicate figure anchor {{fig:example}}" not in errors
+
+
 def test_validate_presentation_reports_shared_managed_figure_picture_relationship(tmp_path: Path) -> None:
     init_workspace(tmp_path)
     init_presentation_by_id(tmp_path, "demo")
@@ -167,7 +188,7 @@ def test_validate_presentation_reports_unknown_table_anchor(tmp_path: Path) -> N
     assert "Slide 1: unknown table anchor {{table:missing}}" in errors
 
 
-def test_validate_presentation_reports_duplicate_table_anchor(tmp_path: Path) -> None:
+def test_validate_presentation_allows_duplicate_table_anchors(tmp_path: Path) -> None:
     init_workspace(tmp_path)
     init_presentation_by_id(tmp_path, "demo")
     deck_path = tmp_path / "slides" / "demo" / "deck.pptx"
@@ -180,7 +201,7 @@ def test_validate_presentation_reports_duplicate_table_anchor(tmp_path: Path) ->
 
     errors = validate_presentation_definition(presentation)
 
-    assert "Slide 1: duplicate table anchor {{table:example}}" in errors
+    assert "Slide 1: duplicate table anchor {{table:example}}" not in errors
 
 
 def test_validate_presentation_reports_malformed_visible_table_anchor(tmp_path: Path) -> None:

@@ -114,8 +114,8 @@ from the loaded presentation entrypoint.
 `ppt <presentation-id> check` validates config, required presentation paths,
 loader data paths, `pubify-data` dependencies, figure/table anchors in
 PowerPoint alt text or exact placeholder text, stat tokens in PowerPoint text,
-duplicate or unknown figure/table anchors, unknown stat ids, stat Alt Text
-anchors, and ambiguous stat-managed text boxes.
+unknown figure/table anchors, unknown stat ids, stat Alt Text anchors, and
+ambiguous stat-managed text boxes.
 
 See `usage.md` for user-facing anchor authoring rules and supported shape
 behavior.
@@ -167,6 +167,13 @@ For bootstrap authoring, a supported shape whose visible text is exactly one
 a picture and persists the token in alt text; after that, alt text is the
 managed anchor source.
 
+`ppt <presentation-id> figure <figure-id> addto <slide-number>` and
+`ppt <presentation-id> figure <figure-id>:<panel-number> addto <slide-number>`
+add centered figure anchors to existing slides and immediately run the targeted
+figure update pipeline for that figure. Multiple anchors for the same figure
+and panel are supported. For multi-panel figure results, scalar CLI references
+create an explicit panel-1 anchor.
+
 Figure updates support simple placeholder shapes and previously generated
 pictures. Unsupported anchor features, such as grouping, rotation, or cropping,
 are validation errors rather than silently changed layout.
@@ -199,6 +206,11 @@ Valid visible stat tokens may span multiple internal PowerPoint runs. Each
 stat-managed text box supports one stat token; multiple stats should use
 separate text boxes.
 
+`ppt <presentation-id> stat <stat-id> addto <slide-number>` adds a centered
+visible stat token text box to an existing slide and immediately runs the
+targeted stat update pipeline. Dictionary stat keys use the same dotted
+reference syntax as visible tokens.
+
 ## Table Updates
 
 `ppt <presentation-id> table update` computes all table results with matching
@@ -211,6 +223,11 @@ Text description is exactly `{{table:<table_id>}}`. On first update,
 `pubify-ppt` replaces that placeholder with a native PowerPoint table at the
 same geometry and persists the token in the table shape Alt Text. Future
 updates find the table through that Alt Text.
+
+`ppt <presentation-id> table <table-id> addto <slide-number>` adds a centered
+placeholder with the table token in Alt Text only and immediately runs the
+targeted table update pipeline. Multiple anchors for the same table ID are
+supported; each matching anchor receives its own native PowerPoint table.
 
 `pubify-data` owns neutral table result normalization. `pubify-ppt` requires
 one body per PowerPoint table and can read default creation-time column

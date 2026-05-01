@@ -5,8 +5,8 @@ from collections import Counter, defaultdict
 from pathlib import Path
 import sys
 
-from pubify_ppt.config import WORKSPACE_CONFIG_SECTION
-from pubify_ppt.config import find_workspace_root
+from pubify_ppt.addto import add_figure_anchor, add_stat_anchor, add_table_anchor
+from pubify_ppt.config import WORKSPACE_CONFIG_SECTION, find_workspace_root
 from pubify_ppt.backups import write_patched_deck
 from pubify_ppt.discovery import list_presentation_ids, load_presentation_definition
 from pubify_ppt.figures import FigureOutput
@@ -33,12 +33,15 @@ def build_parser() -> argparse.ArgumentParser:
                 "  ppt <presentation-id> check",
                 "  ppt <presentation-id> data list",
                 "  ppt <presentation-id> figure list",
+                "  ppt <presentation-id> figure <figure-id> addto <slide-number>",
                 "  ppt <presentation-id> figure update [--output <path>]",
                 "  ppt <presentation-id> figure <figure-id> update [--output <path>]",
                 "  ppt <presentation-id> stat list",
+                "  ppt <presentation-id> stat <stat-id> addto <slide-number>",
                 "  ppt <presentation-id> stat update [--output <path>]",
                 "  ppt <presentation-id> stat <stat-id> update [--output <path>]",
                 "  ppt <presentation-id> table list",
+                "  ppt <presentation-id> table <table-id> addto <slide-number>",
                 "  ppt <presentation-id> table update [--output <path>]",
                 "  ppt <presentation-id> table <table-id> update [--output <path>]",
                 "  ppt <presentation-id> update [--output <path>]",
@@ -157,6 +160,16 @@ def _run_presentation_command(parser: argparse.ArgumentParser, args: argparse.Na
             for line in _replacement_lines(result.outputs, (), ()):
                 print(line)
             return 0
+        if args.arg2 == "figure" and args.arg4 == "addto" and args.arg3 is not None and args.arg5 is not None:
+            _reject_output(parser, "figure addto", args.output)
+            outputs = add_figure_anchor(
+                presentation,
+                figure_ref=args.arg3,
+                slide_number=_slide_number(args.arg5),
+            )
+            for line in _replacement_lines(outputs, (), ()):
+                print(line)
+            return 0
         if args.arg2 == "figure" and args.arg4 == "update" and args.arg3 is not None and args.arg5 is None:
             result = update_figures_in_deck(presentation, figure_id=args.arg3)
             write_patched_deck(
@@ -174,6 +187,16 @@ def _run_presentation_command(parser: argparse.ArgumentParser, args: argparse.Na
             for line in _replacement_lines((), replacements, ()):
                 print(line)
             return 0
+        if args.arg2 == "stat" and args.arg4 == "addto" and args.arg3 is not None and args.arg5 is not None:
+            _reject_output(parser, "stat addto", args.output)
+            replacements = add_stat_anchor(
+                presentation,
+                stat_ref=args.arg3,
+                slide_number=_slide_number(args.arg5),
+            )
+            for line in _replacement_lines((), replacements, ()):
+                print(line)
+            return 0
         if args.arg2 == "stat" and args.arg4 == "update" and args.arg3 is not None and args.arg5 is None:
             replacements = update_stats_to_output(presentation, stat_id=args.arg3, output=_output_path(args.output))
             for line in _replacement_lines((), replacements, ()):
@@ -181,6 +204,16 @@ def _run_presentation_command(parser: argparse.ArgumentParser, args: argparse.Na
             return 0
         if args.arg2 == "table" and args.arg3 == "update" and args.arg4 is None and args.arg5 is None:
             replacements = update_tables_to_output(presentation, output=_output_path(args.output))
+            for line in _replacement_lines((), (), replacements):
+                print(line)
+            return 0
+        if args.arg2 == "table" and args.arg4 == "addto" and args.arg3 is not None and args.arg5 is not None:
+            _reject_output(parser, "table addto", args.output)
+            replacements = add_table_anchor(
+                presentation,
+                table_id=args.arg3,
+                slide_number=_slide_number(args.arg5),
+            )
             for line in _replacement_lines((), (), replacements):
                 print(line)
             return 0
@@ -197,6 +230,16 @@ def _run_presentation_command(parser: argparse.ArgumentParser, args: argparse.Na
 
 def _output_path(value: str | None) -> Path | None:
     return Path(value) if value is not None else None
+
+
+def _slide_number(value: str) -> int:
+    try:
+        slide_number = int(value)
+    except ValueError:
+        raise ValueError(f"Slide number must be an integer: {value}") from None
+    if slide_number < 1:
+        raise ValueError(f"Slide number must be positive: {value}")
+    return slide_number
 
 
 def _slide_line(slide_number: int, value: str) -> str:
