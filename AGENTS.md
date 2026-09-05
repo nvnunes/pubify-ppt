@@ -31,4 +31,4 @@
 - Before concluding substantial work, satisfy the verification expectations in `docs/testing.md`.
 
 ## Review Lens
-- Favor package/workspace ownership clarity, lifecycle clarity, conservative public-surface changes, and removal of stale abstractions over preserving weak indirection.
+- Favor conservative public-surface changes in review.
